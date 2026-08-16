@@ -312,11 +312,39 @@ let features=[], byName=new Map(), sel={type:null,id:null}, k=1, W=0, H=0, pickM
 const allSites=()=>S.sites.concat(S.own);
 const isDone=id=>!!(S.places[id]&&S.places[id].visited);
 
-const zoom=d3.zoom().scaleExtent([1,14]).on('zoom',ev=>{
-  k=ev.transform.k; gRoot.attr('transform',ev.transform); resizeMarks();
-});
+// A double tap on open water clears the selection, so the zoom behaviour has to
+// keep its hands off that one gesture. Everything else filters as d3 does by default.
+const onBlank=t=>!(t&&t.closest&&t.closest('.country,.site'));
+const zoom=d3.zoom().scaleExtent([1,14])
+  .filter(ev=>ev.type==='dblclick'&&onBlank(ev.target)
+    ?false
+    :(!ev.ctrlKey||ev.type==='wheel')&&!ev.button)
+  .on('zoom',ev=>{
+    k=ev.transform.k; gRoot.attr('transform',ev.transform); resizeMarks();
+  });
 svg.call(zoom).on('mousedown',()=>svg.classed('grabbing',true))
-   .on('mouseup',()=>svg.classed('grabbing',false));
+   .on('mouseup',()=>svg.classed('grabbing',false))
+   .on('dblclick.deselect',ev=>{
+     if(pickMode||!onBlank(ev.target)) return;
+     ev.preventDefault(); dismiss();
+   });
+
+/* On touch, d3 runs its own double-tap-to-zoom off touchstart rather than off a
+   dblclick event, so the filter above never sees it and a listener on the svg
+   would arrive too late. Catching it on the wrapper during capture stops the
+   second tap before the zoom behaviour is reached. */
+let tapAt=0, tapX=0, tapY=0;
+wrap.addEventListener('touchstart',ev=>{
+  if(pickMode||ev.touches.length!==1){ tapAt=0; return; }
+  const t=ev.touches[0], now=Date.now(), blank=onBlank(ev.target);
+  if(blank&&now-tapAt<350&&Math.abs(t.clientX-tapX)<32&&Math.abs(t.clientY-tapY)<32){
+    tapAt=0;
+    ev.stopPropagation(); ev.preventDefault();
+    dismiss();
+    return;
+  }
+  tapAt=blank?now:0; tapX=t.clientX; tapY=t.clientY;
+},{capture:true,passive:false});
 
 function layout(){
   W=wrap.clientWidth; H=wrap.clientHeight;
@@ -437,7 +465,34 @@ const pbody=document.getElementById('pbody'), kicker=document.getElementById('p-
       hlabel=document.getElementById('handle-label');
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const dms=(v,ns)=>`${Math.abs(v).toFixed(4)}° ${v>=0?ns[0]:ns[1]}`;
-const openPanel=()=>panel.classList.add('open');
+const isPhone=()=>window.matchMedia('(max-width:820px)').matches;
+const openPanel=()=>{ panel.classList.add('open'); markNav(); };
+
+/* A single history entry stands for "something is open". Android's back button
+   pops it and we dismiss the selection instead of leaving the app; dismissing
+   from the UI pops the entry itself, so the two never drift apart. Only one is
+   ever outstanding, so switching between countries does not stack up entries. */
+let navPushed=false;
+function markNav(){
+  if(navPushed) return;
+  if(!sel.type&&!isPhone()) return;   // on desktop the overview is the resting state
+  try{ history.pushState({atlas:1},''); navPushed=true; }catch(e){}
+}
+function releaseNav(){
+  if(!navPushed) return;
+  navPushed=false;
+  try{ history.back(); }catch(e){}
+}
+function dismiss(fromPop){
+  sel={type:null,id:null}; paint(); renderOverview();
+  if(isPhone()) panel.classList.remove('open','tall');
+  if(fromPop) navPushed=false; else releaseNav();
+}
+window.addEventListener('popstate',()=>{
+  const open=sel.type||(isPhone()&&panel.classList.contains('open'));
+  navPushed=false;
+  if(open) dismiss(true);
+});
 
 function brand(){
   document.getElementById('a-name').textContent=S.name;
@@ -445,11 +500,13 @@ function brand(){
   document.title=S.name+(S.tagline?' — '+S.tagline:'');
 }
 document.getElementById('handle').onclick=()=>{
-  if(!panel.classList.contains('open')) panel.classList.add('open');
+  if(!panel.classList.contains('open')) openPanel();
   else if(!panel.classList.contains('tall')) panel.classList.add('tall');
-  else panel.classList.remove('open','tall');
+  else { panel.classList.remove('open','tall'); releaseNav(); }
 };
-back.onclick=()=>{ sel={type:null,id:null}; paint(); renderOverview(); };
+// Leaving a country for the overview keeps the sheet up on a phone, so the
+// history entry still has something to stand for; on desktop it does not.
+back.onclick=()=>{ sel={type:null,id:null}; paint(); renderOverview(); if(!isPhone()) releaseNav(); };
 document.getElementById('btn-atlas').onclick=()=>{ sel={type:null,id:null}; paint(); renderOverview(); openPanel(); };
 document.getElementById('z-in').onclick=()=>svg.transition().duration(250).call(zoom.scaleBy,1.6);
 document.getElementById('z-out').onclick=()=>svg.transition().duration(250).call(zoom.scaleBy,1/1.6);
