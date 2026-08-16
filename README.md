@@ -88,8 +88,8 @@ is easier to type in bulk.
 
 ## Offline and installing
 
-The service worker precaches the page, the icons, the map geometry and the bundled sample, so a
-second visit works with no connection. Same-origin files are fetched network-first, so a redeploy
+The service worker precaches the page, the icons and the map geometry, so a second visit works with
+no connection. Same-origin files are fetched network-first, so a redeploy
 reaches clients that already have it installed; the versioned map libraries are served cache-first.
 
 In Chrome or Edge an **Install** button appears once the browser offers it, and the app then runs in
@@ -103,7 +103,9 @@ its own window. Firefox and Safari do not fire that event — on iOS, use Share 
 | `manifest.json` | Install metadata. |
 | `sw.js` | Service worker: precache and offline behaviour. |
 | `icon-192.png`, `icon-512.png` | App icons. |
-| `cryptid-atlas.json` | A sample atlas, loadable from the empty state. Delete it if you do not want it; also remove its line from `CORE` in `sw.js`. |
+
+Save files are deliberately not committed — `.gitignore` excludes `*.atlas.json`, so your atlases
+stay yours and never end up in the repository by accident.
 
 ## Notes
 

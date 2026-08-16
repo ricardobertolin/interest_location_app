@@ -2,7 +2,6 @@ const CACHE = 'atlas-v1';
 const CORE = [
   './',
   './index.html',
-  './cryptid-atlas.json',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',

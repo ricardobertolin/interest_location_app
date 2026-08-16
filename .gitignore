@@ -1,0 +1,3 @@
+# Atlas save files are personal data, not part of the app.
+*.atlas.json
+cryptid-atlas.json

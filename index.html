@@ -218,12 +218,10 @@ h2.dossier{font-family:var(--serif);font-size:30px;font-weight:400;margin:0 0 2p
 /* ---------------------------------------------------------------
    The app itself is unbranded: an empty globe you log places on.
    A name, a tagline and a catalogue of sites all live in the save
-   file, so "The Cryptid Atlas" is just one save among any others.
+   file, so any themed atlas is just one save among any others.
    --------------------------------------------------------------- */
 
 const KEY='atlas-v1';
-const LEGACY_KEY='cryptid-atlas-v1';   // pre-save-file builds; migrated on first run
-const SAMPLE='cryptid-atlas.json';
 const DEFAULT_NAME='Atlas', DEFAULT_TAG='Site Log';
 
 const norm=s=>String(s).toLowerCase().replace(/[^a-z]/g,'');
@@ -302,26 +300,8 @@ const rec=id=>S.places[id]||(S.places[id]={});
 function boot(){
   let raw=null;
   try{raw=localStorage.getItem(KEY);}catch(e){}
-  if(raw){ try{S=readSave(JSON.parse(raw));}catch(e){S=blank();} return Promise.resolve(); }
-
-  // First run after the split: an old cryptid save still has its progress keyed
-  // by array index (s0, s1...), so pull the catalogue in and remap onto slug ids.
-  let old=null;
-  try{old=localStorage.getItem(LEGACY_KEY);}catch(e){}
-  if(!old) return Promise.resolve();
-  return fetch(SAMPLE).then(r=>r.json()).then(pack=>{
-    const o=JSON.parse(old), sites=readSites(pack.sites), places={};
-    Object.keys(o.places||{}).forEach(k=>{
-      const m=/^s(\d+)$/.exec(k), t=m&&sites[+m[1]];
-      places[t?t.id:k]=o.places[k];
-    });
-    S={name:str(pack.name)||DEFAULT_NAME,tagline:str(pack.tagline),sites:sites,
-       countries:(o.countries&&typeof o.countries==='object')?o.countries:{},
-       places:places,own:readOwn(o.own)};
-    save();
-    try{localStorage.removeItem(LEGACY_KEY);}catch(e){}
-    toast('Save migrated');
-  }).catch(()=>{});
+  if(raw){ try{S=readSave(JSON.parse(raw));}catch(e){S=blank();} }
+  return Promise.resolve();
 }
 
 /* ---------- map ---------- */
@@ -513,8 +493,7 @@ function renderOverview(){
     </div>
     <div class="bar"><i style="width:${pct.toFixed(2)}%"></i></div>
     ${n?'<p class="empty">Select any territory on the map to open it, mark it visited, and work through the sites recorded inside it.</p>'
-       :`<p class="empty">This atlas is empty. Select a territory on the map to add your first site — or load the sample atlas to see one that is already filled in.</p>
-         <div class="rowbtns"><button id="a-sample">Load sample atlas</button></div>`}
+       :'<p class="empty">This atlas is empty. Select a territory on the map to add your first site, or open a save file you already have.</p>'}
     <div class="rule"></div>
     <div class="sechead">Visited</div>
     ${visited.length?visited.map(f=>`<div class="listrow" data-fid="${f.id}"><span>${esc(f.properties.name)}</span>
@@ -547,8 +526,6 @@ function renderOverview(){
     pbody.querySelector('h2.dossier').textContent=S.name; };
   retag.onchange=retag.onblur=()=>{ S.tagline=retag.value.trim(); save(); brand(); };
 
-  const sample=document.getElementById('a-sample');
-  if(sample) sample.onclick=loadSample;
   document.getElementById('a-save').onclick=saveToFile;
   document.getElementById('a-open').onclick=()=>document.getElementById('openfile').click();
   document.getElementById('a-copy').onclick=copyReport;
@@ -713,11 +690,6 @@ document.getElementById('openfile').onchange=function(){
   fr.readAsText(f);
   this.value='';   // let the same file be reopened later
 };
-function loadSample(){
-  fetch(SAMPLE).then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
-    .then(o=>applySave(o,'Sample atlas loaded'))
-    .catch(e=>{ toast('Sample unavailable'); console.error(e); });
-}
 function copyReport(){
   const cv=features.filter(f=>S.countries[f.id]).map(f=>f.properties.name);
   const done=allSites().filter(s=>isDone(s.id));
