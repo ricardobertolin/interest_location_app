@@ -1,4 +1,6 @@
-const CACHE = 'atlas-v1';
+/* Bump with APP_VERSION in index.html — the activate step drops every other
+   cache, so a new name is what retires the previous release's files. */
+const CACHE = 'atlas-1.1.0';
 const CORE = [
   './',
   './index.html',

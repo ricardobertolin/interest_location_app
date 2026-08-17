@@ -6,6 +6,18 @@ Click a country to mark it visited. Add sites to it — a name, a one-line hook,
 and tick them off as you go, attaching photos and field notes to each. Everything you build is one
 file you own and can move between devices.
 
+## Photos
+
+Attach as many as you like to a site — the picker takes several at once. They appear as a grid of
+thumbnails under the notes; click any one to open it full screen, where the arrow keys, the on-screen
+arrows or a swipe move between them.
+
+One photo is the site's **main** one. It is the picture shown wherever the site is presented: as a
+banner at the top of the site once it is selected, as a thumbnail on the collapsed card, and beside
+the site in the overview's visited list. The first photo you attach takes the role; press ★ on any
+other thumbnail, or **Set as main** in the full-screen view, to move it. Remove the main photo and
+the first remaining one takes over.
+
 It is a single static page. No account, no server, no tracking, and it works with no connection
 once loaded.
 
@@ -32,7 +44,8 @@ progress together, so opening it anywhere restores exactly what you had.
 ```json
 {
   "format": "atlas-save",
-  "version": 1,
+  "version": 2,
+  "app": "1.1.0",
   "name": "My Atlas",
   "tagline": "Places worth the detour",
   "sites": [
@@ -48,7 +61,9 @@ progress together, so opening it anywhere restores exactly what you had.
   ],
   "progress": {
     "countries": { "604": true },
-    "places": { "peru/nazca-lines": { "visited": true, "notes": "", "photos": [] } },
+    "places": {
+      "peru/nazca-lines": { "visited": true, "notes": "", "photos": [], "cover": 0 }
+    },
     "own": []
   }
 }
@@ -107,9 +122,24 @@ its own window. Firefox and Safari do not fire that event — on iOS, use Share 
 Save files are deliberately not committed — `.gitignore` excludes `*.atlas.json`, so your atlases
 stay yours and never end up in the repository by accident.
 
+## Versions
+
+The running version is printed at the foot of the **Atlas** overview panel and lives in one place in
+the source: `APP_VERSION` in `index.html`. Two things follow it and are bumped by hand alongside it:
+`CACHE` in `sw.js`, whose name is what retires the previous release's cached files, and
+`SAVE_VERSION`, which changes only when the shape of a save file does.
+
+| | |
+|---|---|
+| 1.1.0 | Photo grid, full-screen viewer, and a main photo per site (`cover`). Save format 2. |
+| 1.0.0 | First release. Save format 1. |
+
+Save format 2 only adds the optional `cover` pointer, so a version 1 file opens unchanged — a site
+with photos and no pointer simply treats the first as its main one.
+
 ## Notes
 
-Photos are downscaled to 720px and embedded in the save file as data URLs. That keeps a file
+Photos are downscaled to 1000px and embedded in the save file as data URLs. That keeps a file
 self-contained, but a heavily illustrated atlas gets large, and `localStorage` is capped at a few
 megabytes per origin — the app warns you when a write fails.
 
@@ -121,7 +151,9 @@ The country outlines are simplified for size. Small islands and fine coastline a
 on one can sit slightly outside the landmass it belongs to. This is cosmetic — the dot is at its real
 coordinates.
 
-`version` in the save file is the hook for format changes; nothing reads it yet.
+`version` in the save file is the hook for format changes; the reader is tolerant rather than
+strict, so nothing reads it yet — it is there for a change that cannot be absorbed silently.
+`app` records which build wrote the file.
 
 ## Licence
 

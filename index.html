@@ -119,11 +119,55 @@ h2.dossier{font-family:var(--serif);font-size:30px;font-weight:400;margin:0 0 2p
 .lore{font-size:12px;line-height:1.62;color:#b9bfc2;text-wrap:pretty;margin:2px 0 10px}
 .coords{font-size:10px;letter-spacing:.1em;color:var(--cyan-dim);text-transform:uppercase;margin-bottom:10px}
 .fieldlabel{font-size:9.5px;letter-spacing:.18em;color:var(--dim);text-transform:uppercase;margin-bottom:5px}
-.photos{display:flex;gap:6px;flex-wrap:wrap;margin:9px 0}
-.photos figure{position:relative;margin:0;width:64px;height:64px}
-.photos img{width:100%;height:100%;object-fit:cover;filter:grayscale(.45) contrast(1.1)}
-.photos button{position:absolute;top:-6px;right:-6px;width:18px;height:18px;padding:0;font-size:10px;
-  background:var(--ink);line-height:1}
+/* the main photo, shown at the head of an open site */
+.hero{position:relative;margin:0 0 12px;border:1px solid var(--line2);background:#0a0f12;overflow:hidden}
+.hero img{display:block;width:100%;height:190px;object-fit:cover;cursor:zoom-in;
+  filter:grayscale(.2) contrast(1.05);transition:filter .25s,transform .4s}
+.hero:hover img{filter:none;transform:scale(1.02)}
+.hero figcaption{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:8px;
+  padding:14px 9px 6px;font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);
+  background:linear-gradient(transparent,#050809e6);pointer-events:none}
+.hero figcaption b{color:var(--cyan);font-weight:400}
+
+.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:6px;margin:9px 0}
+.photos figure{position:relative;margin:0;aspect-ratio:1;overflow:hidden;border:1px solid var(--line)}
+.photos figure.main{border-color:var(--visited-line)}
+.photos img{display:block;width:100%;height:100%;object-fit:cover;cursor:zoom-in;
+  filter:grayscale(.45) contrast(1.1);transition:filter .2s,transform .35s}
+.photos figure:hover img{filter:none;transform:scale(1.06)}
+.photos .badge{position:absolute;left:0;bottom:0;padding:2px 5px;background:#0b1114d9;color:var(--cyan);
+  font-size:8px;letter-spacing:.18em;text-transform:uppercase;font-weight:400;pointer-events:none}
+.pacts{position:absolute;top:3px;right:3px;display:flex;gap:3px;opacity:0;transition:opacity .15s}
+.photos figure:hover .pacts,.photos figure:focus-within .pacts{opacity:1}
+.pacts button{width:21px;height:21px;padding:0;font-size:10px;line-height:1;background:#0b1114e6}
+@media (hover:none){.pacts{opacity:1}}
+
+.rowthumb{width:30px;height:30px;flex:none;object-fit:cover;align-self:center;
+  border:1px solid var(--line2);filter:grayscale(.4) contrast(1.1)}
+.cardthumb{width:44px;height:44px;flex:none;margin-left:auto;object-fit:cover;
+  border:1px solid var(--line2);filter:grayscale(.4) contrast(1.1)}
+
+/* lightbox */
+.lb{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center}
+.lb[hidden]{display:none}
+.lb-shade{position:absolute;inset:0;background:#040709f2}
+.lb-frame{position:relative;margin:0;padding:0 56px;max-width:100vw;
+  max-height:calc(100% - 72px - env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:center}
+.lb-frame img{max-width:100%;max-height:calc(100vh - 130px);display:block;object-fit:contain;
+  border:1px solid var(--line2);background:#0a0f12}
+.lb-nav{position:absolute;top:50%;transform:translateY(-50%);width:38px;height:54px;padding:0;
+  font-size:20px;background:#0b1114cc;z-index:2}
+.lb-nav[disabled]{opacity:.2}
+#lb-prev{left:10px}
+#lb-next{right:10px}
+.lb-bar{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:8px;
+  padding:11px 13px calc(11px + env(safe-area-inset-bottom));
+  background:#080b0eee;border-top:1px solid var(--line)}
+.lb-count{font-size:10px;letter-spacing:.16em;color:var(--cyan);text-transform:uppercase;white-space:nowrap}
+.lb-name{flex:1;min-width:0;font-size:10px;letter-spacing:.14em;color:var(--dim);text-transform:uppercase;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lb-bar button{background:#0b1114}
+.lb-bar button.on{border-color:var(--visited-line);color:var(--cyan)}
 .rowbtns{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
 .tiny{font-size:9.5px;letter-spacing:.14em;color:var(--dim);text-transform:uppercase}
 
@@ -141,6 +185,8 @@ h2.dossier{font-family:var(--serif);font-size:30px;font-weight:400;margin:0 0 2p
 .form label{display:block;margin-bottom:9px}
 .form .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .note{font-size:10.5px;color:var(--dim);letter-spacing:.03em;margin-top:7px;line-height:1.5}
+#a-version{margin-top:14px;padding-top:10px;border-top:1px solid var(--line);font-size:9.5px;
+  letter-spacing:.16em;text-transform:uppercase;color:#5a666c}
 
 #toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);background:#0b1114;
   border:1px solid var(--cyan-dim);color:var(--cyan);padding:9px 14px;font-size:11px;letter-spacing:.12em;
@@ -167,6 +213,12 @@ h2.dossier{font-family:var(--serif);font-size:30px;font-weight:400;margin:0 0 2p
   #pbody{padding-bottom:calc(20px + env(safe-area-inset-bottom))}
   #legend{display:none}
   #zoomctl{bottom:auto;top:12px}
+  .hero img{height:160px}
+  .lb-frame{padding:0 44px}
+  .lb-nav{width:32px;height:48px;font-size:18px}
+  #lb-prev{left:4px}
+  #lb-next{right:4px}
+  .lb-name{display:none}
 }
 </style>
 </head>
@@ -208,6 +260,19 @@ h2.dossier{font-family:var(--serif);font-size:30px;font-weight:400;margin:0 0 2p
     </aside>
   </main>
 </div>
+<div id="lightbox" class="lb" hidden>
+  <div class="lb-shade" id="lb-shade"></div>
+  <figure class="lb-frame"><img id="lb-img" alt=""></figure>
+  <button class="lb-nav" id="lb-prev" title="Previous photo">‹</button>
+  <button class="lb-nav" id="lb-next" title="Next photo">›</button>
+  <div class="lb-bar">
+    <span class="lb-count" id="lb-count">1 / 1</span>
+    <span class="lb-name" id="lb-name"></span>
+    <button id="lb-main" title="Show this photo when the site is selected">Set as main</button>
+    <button id="lb-del">Remove</button>
+    <button id="lb-close">Close</button>
+  </div>
+</div>
 <div id="toast"></div>
 <input type="file" id="openfile" accept="application/json,.json" style="display:none">
 
@@ -222,6 +287,8 @@ h2.dossier{font-family:var(--serif);font-size:30px;font-weight:400;margin:0 0 2p
    --------------------------------------------------------------- */
 
 const KEY='atlas-v1';
+const APP_VERSION='1.1.0';        // shown in the overview; bump with sw.js CACHE
+const SAVE_VERSION=2;             // save files: 2 adds the main-photo pointer
 const DEFAULT_NAME='Atlas', DEFAULT_TAG='Site Log';
 
 const norm=s=>String(s).toLowerCase().replace(/[^a-z]/g,'');
@@ -285,7 +352,7 @@ function readSave(o){
   };
 }
 function writeSave(){
-  return {format:'atlas-save',version:1,name:S.name,tagline:S.tagline,
+  return {format:'atlas-save',version:SAVE_VERSION,app:APP_VERSION,name:S.name,tagline:S.tagline,
     sites:S.sites.map(s=>({id:s.id,country:s.country,name:s.name,hook:s.hook,
       lore:s.lore,lat:s.lat,lng:s.lng})),
     progress:{countries:S.countries,places:S.places,
@@ -296,6 +363,34 @@ function writeSave(){
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(writeSave()));}
   catch(e){toast('Storage full — remove a photo');}};
 const rec=id=>S.places[id]||(S.places[id]={});
+
+/* ---------- photos ----------
+   A record keeps its photos in order and points at one of them with `cover`,
+   the photo shown wherever the site is presented. Older saves have no pointer,
+   so the first photo stands in until one is chosen. */
+function photosOf(id){ const r=S.places[id]; return (r&&Array.isArray(r.photos))?r.photos:[]; }
+function coverIdx(id){
+  const ph=photosOf(id); if(!ph.length) return -1;
+  const c=S.places[id].cover;
+  return (Number.isInteger(c)&&c>=0&&c<ph.length)?c:0;
+}
+function coverOf(id){ const i=coverIdx(id); return i<0?null:photosOf(id)[i]; }
+function setCover(id,i){
+  const ph=photosOf(id); if(i<0||i>=ph.length) return false;
+  rec(id).cover=i; save(); return true;
+}
+function dropPhoto(id,i){
+  const r=rec(id), ph=r.photos||[];
+  if(i<0||i>=ph.length) return false;
+  ph.splice(i,1);
+  if(!ph.length){ delete r.photos; delete r.cover; }
+  else{
+    let c=Number.isInteger(r.cover)?r.cover:0;
+    if(c===i) c=0; else if(c>i) c--;
+    r.cover=Math.max(0,Math.min(c,ph.length-1));
+  }
+  save(); return true;
+}
 
 function boot(){
   let raw=null;
@@ -491,6 +586,9 @@ function dismiss(fromPop){
 window.addEventListener('popstate',()=>{
   const open=sel.type||(isPhone()&&panel.classList.contains('open'));
   navPushed=false;
+  // a photo viewer is the innermost thing open: back closes it and nothing else,
+  // so the entry it consumed is put straight back
+  if(lbOpen()){ closeLightbox(); markNav(); return; }
   if(open) dismiss(true);
 });
 
@@ -532,6 +630,8 @@ function stats(){
 
 /* ---------- overview ---------- */
 function renderOverview(){
+  curFid=null;
+  if(lbOpen()) closeLightbox();
   kicker.textContent='Overview'; back.style.display='none'; hlabel.textContent=S.name;
   const total=features.length||177;
   const cv=Object.values(S.countries).filter(Boolean).length;
@@ -558,7 +658,9 @@ function renderOverview(){
       '<p class="empty">No territories logged yet.</p>'}
     <div class="rule"></div>
     <div class="sechead">Visited sites</div>
-    ${done.length?done.map(s=>`<div class="listrow" data-site="${esc(s.id)}"><span>${esc(s.name)}</span><em>${esc(s.cname||s.country)}</em></div>`).join(''):
+    ${done.length?done.map(s=>{const c=coverOf(s.id);
+        return `<div class="listrow" data-site="${esc(s.id)}">${c?`<img class="rowthumb" src="${esc(c)}" alt="">`:''}
+          <span>${esc(s.name)}</span><em>${esc(s.cname||s.country)}</em></div>`;}).join(''):
       '<p class="empty">Nothing marked visited yet.</p>'}
     <div class="rule"></div>
     <div class="sechead">This atlas</div>
@@ -572,7 +674,8 @@ function renderOverview(){
       <button id="a-copy">Copy report</button>
       <button id="a-new">New atlas</button>
     </div>
-    <p class="note">The file holds the atlas name, every site, and your progress — everything. It reopens here on any device. Work is also kept in this browser automatically. Attached photos are embedded, so a file with many photos gets large.</p>`;
+    <p class="note">The file holds the atlas name, every site, and your progress — everything. It reopens here on any device. Work is also kept in this browser automatically. Attached photos are embedded, so a file with many photos gets large.</p>
+    <p class="note" id="a-version">Atlas ${esc(APP_VERSION)} · save format v${SAVE_VERSION}</p>`;
 
   pbody.querySelectorAll('.listrow[data-fid]').forEach(el=>el.onclick=()=>selectCountry(el.dataset.fid));
   pbody.querySelectorAll('.listrow[data-site]').forEach(el=>el.onclick=()=>{
@@ -593,7 +696,9 @@ function renderOverview(){
 }
 
 /* ---------- country ---------- */
+let curFid=null;                  // the country whose cards are on screen, for the lightbox
 function renderCountry(fid,openId){
+  curFid=fid;
   const f=features.find(x=>String(x.id)===fid);
   const name=f?f.properties.name:'Unknown';
   const sites=allSites().filter(s=>s.fid===fid);
@@ -655,7 +760,20 @@ function endPick(){ pickMode=false; svg.classed('picking',false); }
 
 function card(s){
   const r=S.places[s.id]||{}, cid=cssId(s.id), sid=esc(s.id);
-  const photos=(r.photos||[]).map((p,i)=>`<figure><img src="${esc(p)}" alt=""><button data-del="${i}" data-site="${sid}">×</button></figure>`).join('');
+  const ph=photosOf(s.id), ci=coverIdx(s.id), n=ph.length;
+  const hero=ci<0?'':`<figure class="hero">
+        <img src="${esc(ph[ci])}" alt="${esc(s.name)}" data-view="${ci}" data-site="${sid}">
+        <figcaption><b>Main photo</b>${n>1?` · ${n} on file`:''}</figcaption>
+      </figure>`;
+  const grid=n?`<div class="photos">${ph.map((p,i)=>`<figure class="${i===ci?'main':''}">
+          <img src="${esc(p)}" alt="" data-view="${i}" data-site="${sid}">
+          ${i===ci?'<b class="badge">Main</b>':''}
+          <div class="pacts">
+            ${i===ci?'':`<button data-main="${i}" data-site="${sid}" title="Set as main photo">★</button>`}
+            <button data-del="${i}" data-site="${sid}" title="Remove photo">×</button>
+          </div>
+        </figure>`).join('')}</div>`
+    :'<p class="empty">None attached. The first photo you add becomes the main one.</p>';
   return `<div class="card ${r.visited?'done':''}" id="card-${cid}" data-site="${sid}">
     <div class="cardtop">
       <div class="chk" data-chk="${sid}">✓</div>
@@ -663,20 +781,29 @@ function card(s){
         <p class="cardname">${esc(s.name)}</p>
         ${s.hook?`<p class="hook">${esc(s.hook)}</p>`:''}
       </div>
+      ${ci<0?'':`<img class="cardthumb" src="${esc(ph[ci])}" alt="">`}
     </div>
     <div class="cardbody">
+      ${hero}
       ${s.lore?`<p class="lore">${esc(s.lore)}</p>`:''}
       ${s.lat!=null&&s.lng!=null?`<p class="coords">${dms(s.lat,['N','S'])} / ${dms(s.lng,['E','W'])}</p>`:'<p class="coords">No coordinates on file</p>'}
       <p class="fieldlabel">Your notes</p>
       <textarea rows="3" data-note="${sid}" placeholder="Date of visit, conditions, what you saw.">${esc(r.notes||'')}</textarea>
-      <p class="fieldlabel" style="margin-top:11px">Photos</p>
-      <div class="photos">${photos||'<span class="empty">None attached.</span>'}</div>
+      <p class="fieldlabel" style="margin-top:11px">Photos${n?` · ${n}`:''}</p>
+      ${grid}
       <div class="rowbtns">
-        <button data-photo="${sid}">+ Attach photo</button>
+        <button data-photo="${sid}">+ Attach photo${n?'s':''}</button>
         ${s.own?`<button data-drop="${sid}">Delete entry</button>`:''}
       </div>
-      <input type="file" accept="image/*" data-file="${sid}" style="display:none">
+      <input type="file" accept="image/*" multiple data-file="${sid}" style="display:none">
     </div></div>`;
+}
+// Photo edits redraw the whole panel, and a card that jumped back to the top of
+// the list after every removal would be unusable — hold the scroll where it was.
+function reCards(fid,openId){
+  const y=pbody.scrollTop;
+  renderCountry(fid,openId);
+  pbody.scrollTop=y;
 }
 function wireCards(fid){
   const bySite=sel=>pbody.querySelectorAll(sel);
@@ -699,30 +826,137 @@ function wireCards(fid){
     b.onclick=()=>pbody.querySelector(`[data-file="${CSS.escape(b.dataset.photo)}"]`).click();
   });
   bySite('[data-file]').forEach(inp=>{
-    inp.onchange=()=>{ const f=inp.files&&inp.files[0]; if(!f) return; shrink(f,720,d=>{
-      const r=rec(inp.dataset.file); (r.photos=r.photos||[]).push(d); save();
-      renderCountry(fid,inp.dataset.file); }); };
+    inp.onchange=()=>{
+      const id=inp.dataset.file;
+      const queue=Array.from(inp.files||[]).filter(f=>!f.type||f.type.indexOf('image/')===0);
+      inp.value='';                       // let the same picture be attached again later
+      if(!queue.length) return;
+      let added=0;
+      (function next(){
+        const f=queue.shift();
+        if(!f){
+          if(!added){ toast('Nothing could be read'); return; }
+          save(); reCards(fid,id);
+          toast(added===1?'Photo attached':added+' photos attached');
+          return;
+        }
+        shrink(f,1000,d=>{
+          if(d){ const r=rec(id); (r.photos=r.photos||[]).push(d); added++; }
+          next();
+        });
+      })();
+    };
   });
   bySite('[data-del]').forEach(b=>{
-    b.onclick=ev=>{ ev.stopPropagation(); const r=rec(b.dataset.site);
-      (r.photos||[]).splice(+b.dataset.del,1); save(); renderCountry(fid,b.dataset.site); };
+    b.onclick=ev=>{ ev.stopPropagation();
+      if(dropPhoto(b.dataset.site,+b.dataset.del)) reCards(fid,b.dataset.site); };
+  });
+  bySite('[data-main]').forEach(b=>{
+    b.onclick=ev=>{ ev.stopPropagation();
+      if(setCover(b.dataset.site,+b.dataset.main)){
+        reCards(fid,b.dataset.site); toast('Main photo set'); } };
+  });
+  bySite('[data-view]').forEach(img=>{
+    img.onclick=ev=>{ ev.stopPropagation(); openLightbox(img.dataset.site,+img.dataset.view); };
   });
   bySite('[data-drop]').forEach(b=>{
     b.onclick=()=>{ S.own=S.own.filter(x=>x.id!==b.dataset.drop); delete S.places[b.dataset.drop];
       save(); drawSites(); paint(); renderCountry(fid); };
   });
 }
+// Always answers, with null when the picture cannot be read, so a batch of
+// attachments never stalls on one bad file.
 function shrink(file,max,cb){
   const img=new Image(), fr=new FileReader();
-  fr.onload=()=>{ img.onload=()=>{
-    const sc=Math.min(1,max/Math.max(img.width,img.height));
-    const c=document.createElement('canvas');
-    c.width=Math.round(img.width*sc); c.height=Math.round(img.height*sc);
-    c.getContext('2d').drawImage(img,0,0,c.width,c.height);
-    cb(c.toDataURL('image/jpeg',.62));
-  }; img.src=fr.result; };
+  let done=false;
+  const back=d=>{ if(!done){ done=true; cb(d); } };
+  fr.onerror=()=>back(null);
+  fr.onload=()=>{
+    img.onerror=()=>back(null);
+    img.onload=()=>{
+      try{
+        const sc=Math.min(1,max/Math.max(img.width,img.height));
+        const c=document.createElement('canvas');
+        c.width=Math.max(1,Math.round(img.width*sc)); c.height=Math.max(1,Math.round(img.height*sc));
+        c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+        back(c.toDataURL('image/jpeg',.62));
+      }catch(e){ back(null); }
+    };
+    img.src=fr.result;
+  };
   fr.readAsDataURL(file);
 }
+
+/* ---------- lightbox ----------
+   Opened from any thumbnail. Edits made here (main photo, removal) write
+   straight through and re-render the panel underneath. */
+const lbEl=document.getElementById('lightbox'), lbImg=document.getElementById('lb-img'),
+      lbCount=document.getElementById('lb-count'), lbName=document.getElementById('lb-name'),
+      lbMain=document.getElementById('lb-main'), lbDel=document.getElementById('lb-del'),
+      lbPrev=document.getElementById('lb-prev'), lbNext=document.getElementById('lb-next');
+let lb={site:null,i:0};
+const lbOpen=()=>!lbEl.hidden;
+
+function openLightbox(site,i){
+  const ph=photosOf(site);
+  if(!ph.length) return;
+  lb={site,i:Math.max(0,Math.min(i|0,ph.length-1))};
+  lbEl.hidden=false; drawLightbox();
+}
+function drawLightbox(){
+  const ph=photosOf(lb.site);
+  if(!ph.length){ closeLightbox(); return; }
+  lb.i=Math.max(0,Math.min(lb.i,ph.length-1));
+  const s=allSites().find(x=>x.id===lb.site), isMain=coverIdx(lb.site)===lb.i;
+  lbImg.src=ph[lb.i];
+  lbCount.textContent=(lb.i+1)+' / '+ph.length;
+  lbName.textContent=s?s.name:'';
+  lbMain.textContent=isMain?'✓ Main photo':'Set as main';
+  lbMain.disabled=isMain; lbMain.classList.toggle('on',isMain);
+  lbPrev.disabled=lbNext.disabled=ph.length<2;
+}
+function closeLightbox(){ lbEl.hidden=true; lbImg.removeAttribute('src'); lb={site:null,i:0}; }
+function lbStep(d){
+  const n=photosOf(lb.site).length; if(n<2) return;
+  lb.i=(lb.i+d+n)%n; drawLightbox();
+}
+// the panel behind holds the same photos, so it has to follow along
+function lbRefresh(keepOpen){
+  const site=lb.site;
+  if(curFid!=null) reCards(curFid,site);
+  if(keepOpen){ lb.site=site; drawLightbox(); } else closeLightbox();
+}
+lbPrev.onclick=()=>lbStep(-1);
+lbNext.onclick=()=>lbStep(1);
+document.getElementById('lb-close').onclick=closeLightbox;
+document.getElementById('lb-shade').onclick=closeLightbox;
+lbMain.onclick=()=>{ if(setCover(lb.site,lb.i)){ lbRefresh(true); toast('Main photo set'); } };
+lbDel.onclick=()=>{
+  const site=lb.site;
+  if(!dropPhoto(site,lb.i)) return;
+  const left=photosOf(site).length;
+  if(left) lb.i=Math.min(lb.i,left-1);
+  lbRefresh(left>0);
+  toast(left?'Photo removed':'Photo removed — none left');
+};
+document.addEventListener('keydown',ev=>{
+  if(!lbOpen()) return;
+  if(ev.key==='Escape'){ ev.preventDefault(); closeLightbox(); }
+  else if(ev.key==='ArrowLeft') lbStep(-1);
+  else if(ev.key==='ArrowRight') lbStep(1);
+});
+// swipe between photos on a phone
+let sx=0, sy=0, st=0;
+lbEl.addEventListener('touchstart',ev=>{
+  if(ev.touches.length!==1){ st=0; return; }
+  sx=ev.touches[0].clientX; sy=ev.touches[0].clientY; st=Date.now();
+},{passive:true});
+lbEl.addEventListener('touchend',ev=>{
+  if(!st||Date.now()-st>600) return;
+  const t=ev.changedTouches[0], dx=t.clientX-sx, dy=t.clientY-sy;
+  st=0;
+  if(Math.abs(dx)>44&&Math.abs(dx)>Math.abs(dy)*1.6) lbStep(dx<0?1:-1);
+},{passive:true});
 
 /* ---------- save files ---------- */
 function saveToFile(){
