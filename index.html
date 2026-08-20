@@ -73,7 +73,11 @@ svg#map.picking{cursor:crosshair}
 .site.own.done circle{fill:var(--rust);stroke:var(--rust)}
 .site.sel circle{stroke:var(--cyan)}
 .site .halo{fill:none;stroke:var(--cyan);opacity:0}
-.site.sel .halo{opacity:.55}
+/* A site picked from a list has to be findable on the map, so the selected
+   marker keeps a solid ring and throws a slow pulse out from it. */
+.site.sel .halo{opacity:.9;animation:ping 1.9s ease-out infinite}
+@keyframes ping{0%{r:6px;opacity:.9}70%{opacity:0}100%{r:17px;opacity:0}}
+@media (prefers-reduced-motion:reduce){.site.sel .halo{animation:none;opacity:.7}}
 #tip{position:absolute;pointer-events:none;background:#0b1114ee;border:1px solid var(--line2);
   padding:5px 8px;font-size:11px;letter-spacing:.05em;white-space:nowrap;opacity:0;transition:opacity .12s;
   text-transform:uppercase;transform:translate(-50%,-160%)}
@@ -107,6 +111,8 @@ h2.dossier{font-family:var(--serif);font-size:30px;font-weight:400;margin:0 0 2p
 
 .card{border:1px solid var(--line);background:#0b1013;margin-bottom:9px}
 .card.done{border-color:#254a4a}
+.card.sel{border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan-dim)}
+.card.sel .cardname{color:var(--cyan)}
 .cardtop{display:flex;gap:10px;padding:10px 11px;cursor:pointer;align-items:flex-start}
 .cardtop:hover{background:#0f171b}
 .chk{width:15px;height:15px;flex:none;margin-top:2px;border:1px solid var(--line2);
@@ -170,6 +176,40 @@ h2.dossier{font-family:var(--serif);font-size:30px;font-weight:400;margin:0 0 2p
 .lb-bar button.on{border-color:var(--visited-line);color:var(--cyan)}
 .rowbtns{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
 .tiny{font-size:9.5px;letter-spacing:.14em;color:var(--dim);text-transform:uppercase}
+.missing{position:absolute;inset:0;display:grid;place-items:center;text-align:center;font-size:8px;
+  letter-spacing:.14em;text-transform:uppercase;color:#4d585e;background:#0a0f12}
+
+/* ---- every site on file, as a gallery ---- */
+.galbar{display:flex;gap:6px;margin-bottom:9px}
+.chips{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:13px}
+.chip{padding:5px 9px;font-size:9.5px}
+.chip.on{border-color:var(--visited-line);color:var(--cyan);background:#12262880}
+.gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:9px}
+.galcard{margin:0;border:1px solid var(--line);background:#0b1013;cursor:pointer;
+  display:flex;flex-direction:column;transition:border-color .15s,box-shadow .15s}
+.galcard:hover{border-color:var(--cyan-dim)}
+.galcard.done{border-color:#254a4a}
+.galcard.sel{border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan-dim)}
+.galshot{position:relative;aspect-ratio:4/3;background:#0a0f12;overflow:hidden;flex:none}
+.galshot img{display:block;width:100%;height:100%;object-fit:cover;cursor:zoom-in;
+  filter:grayscale(.35) contrast(1.08);transition:filter .2s,transform .35s}
+.galcard:hover .galshot img{filter:none;transform:scale(1.05)}
+.galnone{position:absolute;inset:0;display:grid;place-items:center;font-size:8.5px;letter-spacing:.18em;
+  text-transform:uppercase;color:#3f4a50}
+.galtick{position:absolute;top:4px;left:4px;width:17px;height:17px;display:grid;place-items:center;
+  background:var(--cyan);color:#06272a;font-size:10px}
+.galtick.own{background:var(--rust);color:#1b0a06}
+.galcount{position:absolute;right:0;bottom:0;padding:2px 5px;background:#0b1114d9;color:var(--cyan);
+  font-size:8px;letter-spacing:.16em;text-transform:uppercase}
+.galcap{padding:7px 8px 8px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.galname{font-family:var(--serif);font-size:15px;line-height:1.16;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.galsub{font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--dim);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.meter{height:3px;background:#161e22;margin:6px 0 0;overflow:hidden}
+.meter i{display:block;height:100%;background:var(--cyan-dim);transition:width .4s}
+.meter i.hot{background:var(--rust)}
 
 .statgrid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);margin-bottom:16px}
 .statgrid div{background:#0b1013;padding:12px}
@@ -198,6 +238,9 @@ h2.dossier{font-family:var(--serif);font-size:30px;font-weight:400;margin:0 0 2p
   .mark h1{font-size:18px;max-width:38vw}
   .mark span{display:none}
   .hstat{font-size:9px}.hstat b{font-size:15px}
+  .hbtns{gap:5px;margin-left:4px}
+  .hbtns button{padding:7px 8px;letter-spacing:.05em}
+  .gal{grid-template-columns:repeat(auto-fill,minmax(132px,1fr))}
   main{grid-template-columns:1fr;grid-template-rows:1fr;position:relative}
   #panel{position:absolute;left:0;right:0;bottom:0;top:auto;height:58%;z-index:20;
     border-left:none;border-top:1px solid var(--line2);box-shadow:0 -18px 40px #000a;
@@ -234,6 +277,7 @@ h2.dossier{font-family:var(--serif);font-size:30px;font-weight:400;margin:0 0 2p
       <div class="hstat"><b id="s-sites">0</b>Sites</div>
     </div>
     <div class="hbtns">
+      <button id="btn-sites" title="Every site on file, with photos">Sites</button>
       <button id="btn-atlas" title="Overview, save and open">Atlas</button>
       <button id="btn-install" style="display:none">Install</button>
     </div>
@@ -287,7 +331,7 @@ h2.dossier{font-family:var(--serif);font-size:30px;font-weight:400;margin:0 0 2p
    --------------------------------------------------------------- */
 
 const KEY='atlas-v1';
-const APP_VERSION='1.1.0';        // shown in the overview; bump with sw.js CACHE
+const APP_VERSION='1.2.0';        // shown in the overview; bump with sw.js CACHE
 const SAVE_VERSION=2;             // save files: 2 adds the main-photo pointer
 const DEFAULT_NAME='Atlas', DEFAULT_TAG='Site Log';
 
@@ -351,30 +395,110 @@ function readSave(o){
     own:readOwn(p.own)
   };
 }
+/* The file written out for the user: photos travel inside it as data URLs, so
+   one file is still the whole atlas and opens anywhere. */
 function writeSave(){
   return {format:'atlas-save',version:SAVE_VERSION,app:APP_VERSION,name:S.name,tagline:S.tagline,
     sites:S.sites.map(s=>({id:s.id,country:s.country,name:s.name,hook:s.hook,
       lore:s.lore,lat:s.lat,lng:s.lng})),
-    progress:{countries:S.countries,places:S.places,
+    progress:{countries:S.countries,places:inlinePlaces(),
       own:S.own.map(s=>({id:s.id,country:s.country,cname:s.cname,fid:s.fid,name:s.name,
         hook:s.hook,lore:s.lore,lat:s.lat,lng:s.lng}))}};
 }
+function inlinePlaces(){
+  const out={};
+  Object.keys(S.places).forEach(id=>{
+    const r=S.places[id]; if(!r) return;
+    const o={};
+    if(r.visited) o.visited=true;
+    if(r.notes) o.notes=r.notes;
+    const ids=Array.isArray(r.photos)?r.photos:[], ci=coverIdx(id), keep=[];
+    let cover=0;
+    ids.forEach((pid,i)=>{ const d=pix(pid); if(!d) return;
+      if(i===ci) cover=keep.length; keep.push(d); });
+    if(keep.length){ o.photos=keep; o.cover=cover; }
+    if(Object.keys(o).length) out[id]=o;
+  });
+  return out;
+}
 
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(writeSave()));}
-  catch(e){toast('Storage full — remove a photo');}};
-const rec=id=>S.places[id]||(S.places[id]={});
+/* ---------------------------------------------------------------
+   Storage.
+   Photos are almost all of an atlas by weight, and localStorage tops
+   out near 5 MB — past twenty or so pictures its write throws, and every
+   edit made after that was lost on the next visit, newest first. The
+   record now lives in IndexedDB with each photo on its own key, so
+   there is room for hundreds and typing a note no longer rewrites a
+   pile of pictures. localStorage remains only as a fallback for
+   browsers without IndexedDB, and as the source of a one-off handover.
+   --------------------------------------------------------------- */
+const DB_NAME='atlas-db', DB_VER=1, ST='state', PH='photos', STATE_KEY='main';
+let db=null, noDB=false;
+
+function openDB(){
+  return new Promise((res,rej)=>{
+    let rq;
+    try{ rq=indexedDB.open(DB_NAME,DB_VER); }catch(e){ return rej(e); }
+    rq.onupgradeneeded=()=>{ const d=rq.result;
+      if(!d.objectStoreNames.contains(ST)) d.createObjectStore(ST);
+      if(!d.objectStoreNames.contains(PH)) d.createObjectStore(PH); };
+    rq.onsuccess=()=>res(rq.result);
+    rq.onerror=()=>rej(rq.error||new Error('open failed'));
+    rq.onblocked=()=>rej(new Error('blocked'));
+  });
+}
+function tx(store,mode,fn){
+  return new Promise((res,rej)=>{
+    if(!db) return rej(new Error('no database'));
+    let t;
+    try{ t=db.transaction(store,mode); }catch(e){ return rej(e); }
+    let out;
+    try{ out=fn(t.objectStore(store)); }catch(e){ try{t.abort();}catch(_){} return rej(e); }
+    t.oncomplete=()=>res(out&&'result' in out?out.result:out);
+    t.onerror=()=>rej(t.error||new Error('transaction failed'));
+    t.onabort=()=>rej(t.error||new Error('transaction aborted'));
+  });
+}
+const idbPut=(s,k,v)=>tx(s,'readwrite',o=>o.put(v,k));
+const idbDel=(s,k)=>tx(s,'readwrite',o=>o.delete(k));
+const idbGet=(s,k)=>tx(s,'readonly',o=>o.get(k));
 
 /* ---------- photos ----------
-   A record keeps its photos in order and points at one of them with `cover`,
+   A record holds photo ids in order and points at one of them with `cover`,
    the photo shown wherever the site is presented. Older saves have no pointer,
-   so the first photo stands in until one is chosen. */
+   so the first photo stands in until one is chosen. The picture data itself
+   sits in PIX, filled from the database once at start-up so every render stays
+   synchronous. */
+const PIX=new Map();
+let pixSeq=0;
+const newPhotoId=()=>'p'+Date.now().toString(36)+(pixSeq++).toString(36)+Math.random().toString(36).slice(2,6);
+const pix=id=>PIX.get(id)||'';
+
+function loadPhotos(){
+  return new Promise((res,rej)=>{
+    let t;
+    try{ t=db.transaction(PH,'readonly'); }catch(e){ return rej(e); }
+    const rq=t.objectStore(PH).openCursor();
+    rq.onsuccess=()=>{ const c=rq.result; if(!c) return; PIX.set(String(c.key),c.value); c.continue(); };
+    t.oncomplete=()=>res();
+    t.onerror=()=>rej(t.error||new Error('photo read failed'));
+  });
+}
+// Writes the picture before anything points at it, so a record never names a
+// photo the database does not hold.
+function storePhoto(id,data){
+  if(noDB){ PIX.set(id,data); return Promise.resolve(true); }
+  return idbPut(PH,id,data).then(()=>{ PIX.set(id,data); return true; })
+    .catch(e=>{ console.error(e); return false; });
+}
 function photosOf(id){ const r=S.places[id]; return (r&&Array.isArray(r.photos))?r.photos:[]; }
 function coverIdx(id){
   const ph=photosOf(id); if(!ph.length) return -1;
   const c=S.places[id].cover;
   return (Number.isInteger(c)&&c>=0&&c<ph.length)?c:0;
 }
-function coverOf(id){ const i=coverIdx(id); return i<0?null:photosOf(id)[i]; }
+function coverSrc(id){ const i=coverIdx(id); return i<0?'':pix(photosOf(id)[i]); }
+function photoCount(id){ return photosOf(id).filter(p=>pix(p)).length; }
 function setCover(id,i){
   const ph=photosOf(id); if(i<0||i>=ph.length) return false;
   rec(id).cover=i; save(); return true;
@@ -382,28 +506,132 @@ function setCover(id,i){
 function dropPhoto(id,i){
   const r=rec(id), ph=r.photos||[];
   if(i<0||i>=ph.length) return false;
-  ph.splice(i,1);
+  const gone=ph.splice(i,1)[0];
   if(!ph.length){ delete r.photos; delete r.cover; }
   else{
     let c=Number.isInteger(r.cover)?r.cover:0;
     if(c===i) c=0; else if(c>i) c--;
     r.cover=Math.max(0,Math.min(c,ph.length-1));
   }
-  save(); return true;
+  save(); forgetPhoto(gone); return true;
+}
+function forgetPhoto(pid){
+  if(!pid||usedPhotoIds().has(pid)) return;
+  PIX.delete(pid);
+  if(!noDB) idbDel(PH,pid).catch(e=>console.error(e));
+}
+function usedPhotoIds(){
+  const set=new Set();
+  Object.keys(S.places).forEach(k=>{ const r=S.places[k];
+    if(r&&Array.isArray(r.photos)) r.photos.forEach(p=>set.add(p)); });
+  return set;
+}
+// Pictures left behind by an opened file or a discarded atlas would otherwise
+// hold on to the quota forever.
+function sweepPhotos(){
+  const used=usedPhotoIds();
+  const dead=[...PIX.keys()].filter(k=>!used.has(k));
+  dead.forEach(k=>PIX.delete(k));
+  if(noDB||!dead.length) return Promise.resolve();
+  return Promise.all(dead.map(k=>idbDel(PH,k).catch(e=>console.error(e))));
+}
+/* Photos arriving inline — from a save file, or from the old localStorage
+   record — are moved into the photo store and replaced by their ids. Ids that
+   name a picture the store does not have are left alone rather than dropped:
+   the record is worth more than the tidiness, and the gaps are shown as such. */
+function adoptInline(){
+  const jobs=[];
+  Object.keys(S.places).forEach(k=>{
+    const r=S.places[k];
+    if(!r||!Array.isArray(r.photos)) return;
+    r.photos=r.photos.filter(p=>typeof p==='string'&&p).map(p=>{
+      if(p.slice(0,5)!=='data:') return p;
+      const id=newPhotoId();
+      PIX.set(id,p);
+      if(!noDB) jobs.push(idbPut(PH,id,p).catch(e=>{console.error(e);}));
+      return id;
+    });
+    if(!r.photos.length){ delete r.photos; delete r.cover; }
+  });
+  return Promise.all(jobs);
+}
+
+/* Writes coalesce: a burst of edits produces one write after the one in flight
+   finishes, and a failure is reported once rather than on every keystroke. */
+let saving=false, dirty=false, saveFailed=false;
+function save(){
+  if(noDB){ saveLocal(); return; }
+  dirty=true;
+  if(saving) return;
+  saving=true;
+  (function run(){
+    if(!dirty){ saving=false; return; }
+    dirty=false;
+    idbPut(ST,STATE_KEY,stateRecord())
+      .then(()=>{ if(saveFailed){ saveFailed=false; toast('Saving again'); } run(); })
+      .catch(e=>{ saving=false; console.error(e);
+        if(!saveFailed){ saveFailed=true; toast('Could not save — storage may be full'); } });
+  })();
+}
+// The internal record: identical to a save file except that photos are named
+// rather than carried, which keeps it small enough to rewrite on every edit.
+function stateRecord(){
+  return {format:'atlas-save',version:SAVE_VERSION,app:APP_VERSION,byref:true,
+    name:S.name,tagline:S.tagline,
+    sites:S.sites.map(s=>({id:s.id,country:s.country,name:s.name,hook:s.hook,
+      lore:s.lore,lat:s.lat,lng:s.lng})),
+    progress:{countries:S.countries,places:S.places,
+      own:S.own.map(s=>({id:s.id,country:s.country,cname:s.cname,fid:s.fid,name:s.name,
+        hook:s.hook,lore:s.lore,lat:s.lat,lng:s.lng}))}};
+}
+function saveLocal(){
+  try{ localStorage.setItem(KEY,JSON.stringify(writeSave())); saveFailed=false; }
+  catch(e){ if(!saveFailed){ saveFailed=true;
+    toast('Storage full — save to a file, then remove a photo'); } }
+}
+const rec=id=>S.places[id]||(S.places[id]={});
+
+// Without this a browser is free to clear the atlas to reclaim space. It is a
+// request, not a guarantee, which is why the overview still nags about files.
+function askPersistence(){
+  if(!navigator.storage||!navigator.storage.persist) return;
+  navigator.storage.persisted().then(p=>p||navigator.storage.persist()).catch(()=>{});
 }
 
 function boot(){
-  let raw=null;
-  try{raw=localStorage.getItem(KEY);}catch(e){}
-  if(raw){ try{S=readSave(JSON.parse(raw));}catch(e){S=blank();} }
-  return Promise.resolve();
+  return openDB().then(d=>{db=d;})
+    .catch(e=>{ noDB=true; console.warn('IndexedDB unavailable, falling back to localStorage',e); })
+    .then(()=>noDB?null:loadPhotos().then(()=>idbGet(ST,STATE_KEY)).catch(e=>{
+      noDB=true; console.warn('database unreadable, falling back to localStorage',e); return null; }))
+    .then(saved=>{
+      if(saved){ try{ S=readSave(saved); }catch(e){ console.error(e); S=blank(); }
+        return adoptInline(); }
+      // nothing stored yet: take over whatever the old localStorage record holds
+      let raw=null;
+      try{ raw=localStorage.getItem(KEY); }catch(e){}
+      if(!raw) return adoptInline();
+      try{ S=readSave(JSON.parse(raw)); }catch(e){ console.error(e); S=blank(); }
+      return adoptInline().then(()=>{
+        if(noDB) return;
+        return idbPut(ST,STATE_KEY,stateRecord())
+          .then(()=>{ try{ localStorage.removeItem(KEY); }catch(e){} })
+          .catch(e=>console.error(e));
+      });
+    })
+    .then(askPersistence)
+    .catch(e=>{ console.error(e); S=blank(); });
 }
 
 /* ---------- map ---------- */
 const svg=d3.select('#map'), wrap=document.getElementById('mapwrap');
 const gRoot=svg.append('g'), gGrat=gRoot.append('g'), gLand=gRoot.append('g'), gSites=gRoot.append('g');
 const proj=d3.geoNaturalEarth1(), path=d3.geoPath(proj);
-let features=[], byName=new Map(), sel={type:null,id:null}, k=1, W=0, H=0, pickMode=false;
+/* A selection names a country and a site at once rather than one or the other:
+   opening a site lights up the territory holding it, and picking a territory
+   keeps its own marking while you work through the sites inside. */
+let features=[], byName=new Map(), sel={country:null,site:null}, k=1, W=0, H=0, pickMode=false;
+const hasSel=()=>!!(sel.country||sel.site);
+const clearSel=()=>{ sel={country:null,site:null}; };
 const allSites=()=>S.sites.concat(S.own);
 const isDone=id=>!!(S.places[id]&&S.places[id].visited);
 
@@ -523,14 +751,16 @@ function drawSites(){
 function paint(){
   gLand.selectAll('path')
     .classed('visited',d=>!!S.countries[d.id])
-    .classed('sel',d=>sel.type==='country'&&sel.id===String(d.id));
+    .classed('sel',d=>sel.country===String(d.id));
   paintSites(); stats();
 }
 function paintSites(){
   gSites.selectAll('.site')
     .classed('done',d=>isDone(d.id))
     .classed('own',d=>!!d.own)
-    .classed('sel',d=>sel.type==='site'&&sel.id===d.id);
+    .classed('sel',d=>sel.site===d.id)
+    // the pulsing marker has to sit above its neighbours to read as the one picked
+    .filter(d=>sel.site===d.id).raise();
 }
 function countSites(fid){ return allSites().filter(s=>s.fid===fid).length; }
 function doneIn(fid){ return allSites().filter(s=>s.fid===fid&&isDone(s.id)).length; }
@@ -570,7 +800,7 @@ const openPanel=()=>{ panel.classList.add('open'); markNav(); };
 let navPushed=false;
 function markNav(){
   if(navPushed) return;
-  if(!sel.type&&!isPhone()) return;   // on desktop the overview is the resting state
+  if(!hasSel()&&!isPhone()) return;   // on desktop the overview is the resting state
   try{ history.pushState({atlas:1},''); navPushed=true; }catch(e){}
 }
 function releaseNav(){
@@ -579,12 +809,12 @@ function releaseNav(){
   try{ history.back(); }catch(e){}
 }
 function dismiss(fromPop){
-  sel={type:null,id:null}; paint(); renderOverview();
+  closeLightbox(); clearSel(); paint(); renderOverview();
   if(isPhone()) panel.classList.remove('open','tall');
   if(fromPop) navPushed=false; else releaseNav();
 }
 window.addEventListener('popstate',()=>{
-  const open=sel.type||(isPhone()&&panel.classList.contains('open'));
+  const open=hasSel()||(isPhone()&&panel.classList.contains('open'));
   navPushed=false;
   // a photo viewer is the innermost thing open: back closes it and nothing else,
   // so the entry it consumed is put straight back
@@ -604,20 +834,34 @@ document.getElementById('handle').onclick=()=>{
 };
 // Leaving a country for the overview keeps the sheet up on a phone, so the
 // history entry still has something to stand for; on desktop it does not.
-back.onclick=()=>{ sel={type:null,id:null}; paint(); renderOverview(); if(!isPhone()) releaseNav(); };
-document.getElementById('btn-atlas').onclick=()=>{ sel={type:null,id:null}; paint(); renderOverview(); openPanel(); };
+back.onclick=()=>{ closeLightbox(); clearSel(); paint(); renderOverview(); if(!isPhone()) releaseNav(); };
+document.getElementById('btn-atlas').onclick=()=>{
+  closeLightbox(); clearSel(); paint(); renderOverview(); openPanel(); };
+document.getElementById('btn-sites').onclick=()=>{ closeLightbox(); renderSites(); openPanel(); };
 document.getElementById('z-in').onclick=()=>svg.transition().duration(250).call(zoom.scaleBy,1.6);
 document.getElementById('z-out').onclick=()=>svg.transition().duration(250).call(zoom.scaleBy,1/1.6);
 document.getElementById('z-reset').onclick=()=>svg.transition().duration(500).call(zoom.transform,d3.zoomIdentity);
 
 function selectCountry(fid,noFly){
-  sel={type:'country',id:fid}; paint(); renderCountry(fid); openPanel(); if(!noFly) flyTo(fid);
+  closeLightbox();
+  sel={country:fid,site:null}; paint(); renderCountry(fid); openPanel(); if(!noFly) flyTo(fid);
 }
+// Reached from a marker, the overview, or the gallery. The site's territory is
+// selected alongside it, so the map shows both the where and the what.
 function selectSite(s){
-  sel={type:'site',id:s.id}; paint();
+  closeLightbox();
+  sel={country:s.fid||null,site:s.id}; paint();
   if(s.fid){ renderCountry(s.fid,s.id); flyTo(s.fid); } else renderOverview();
   openPanel();
   setTimeout(()=>{ const el=document.getElementById('card-'+cssId(s.id)); if(el) pbody.scrollTop=el.offsetTop-70; },30);
+}
+// Opening a card in the country list marks that site on the map too, without
+// re-rendering the panel out from under the reader.
+function focusSite(id){
+  sel={country:sel.country,site:id}; paint(); markCards();
+}
+function markCards(){
+  pbody.querySelectorAll('.card').forEach(c=>c.classList.toggle('sel',c.dataset.site===sel.site));
 }
 // slug ids contain '/', which is not valid inside an element id used with
 // getElementById lookups built by concatenation — swap it for a safe token
@@ -630,8 +874,7 @@ function stats(){
 
 /* ---------- overview ---------- */
 function renderOverview(){
-  curFid=null;
-  if(lbOpen()) closeLightbox();
+  curView={kind:'overview',fid:null};
   kicker.textContent='Overview'; back.style.display='none'; hlabel.textContent=S.name;
   const total=features.length||177;
   const cv=Object.values(S.countries).filter(Boolean).length;
@@ -658,10 +901,11 @@ function renderOverview(){
       '<p class="empty">No territories logged yet.</p>'}
     <div class="rule"></div>
     <div class="sechead">Visited sites</div>
-    ${done.length?done.map(s=>{const c=coverOf(s.id);
+    ${done.length?done.map(s=>{const c=coverSrc(s.id);
         return `<div class="listrow" data-site="${esc(s.id)}">${c?`<img class="rowthumb" src="${esc(c)}" alt="">`:''}
           <span>${esc(s.name)}</span><em>${esc(s.cname||s.country)}</em></div>`;}).join(''):
       '<p class="empty">Nothing marked visited yet.</p>'}
+    ${n?`<button id="a-gallery" style="width:100%;margin-top:10px">Every site on file (${n}) →</button>`:''}
     <div class="rule"></div>
     <div class="sechead">This atlas</div>
     <label><span class="fieldlabel">Name</span><input id="a-rename" value="${esc(S.name)}" placeholder="${DEFAULT_NAME}"></label>
@@ -675,11 +919,18 @@ function renderOverview(){
       <button id="a-new">New atlas</button>
     </div>
     <p class="note">The file holds the atlas name, every site, and your progress — everything. It reopens here on any device. Work is also kept in this browser automatically. Attached photos are embedded, so a file with many photos gets large.</p>
-    <p class="note" id="a-version">Atlas ${esc(APP_VERSION)} · save format v${SAVE_VERSION}</p>`;
+    <div class="sechead" style="margin-top:14px">Space used</div>
+    <div class="tiny" id="a-usage">Measuring…</div>
+    <div class="meter"><i id="a-meter" style="width:0"></i></div>
+    <p class="note">A browser can clear its own storage when a device runs short, and clearing site data wipes an atlas outright. Keep a file copy of anything you would not want to lose.</p>
+    <p class="note" id="a-version">Atlas ${esc(APP_VERSION)} · save format v${SAVE_VERSION} · ${noDB?'fallback storage':'database storage'}</p>`;
 
   pbody.querySelectorAll('.listrow[data-fid]').forEach(el=>el.onclick=()=>selectCountry(el.dataset.fid));
   pbody.querySelectorAll('.listrow[data-site]').forEach(el=>el.onclick=()=>{
     const s=allSites().find(x=>x.id===el.dataset.site); if(s) selectSite(s);});
+  const gal=document.getElementById('a-gallery');
+  if(gal) gal.onclick=()=>renderSites();
+  showUsage();
 
   const rename=document.getElementById('a-rename'), retag=document.getElementById('a-retag');
   rename.onchange=rename.onblur=()=>{ S.name=rename.value.trim()||DEFAULT_NAME; save(); brand(); hlabel.textContent=S.name;
@@ -691,14 +942,107 @@ function renderOverview(){
   document.getElementById('a-copy').onclick=copyReport;
   document.getElementById('a-new').onclick=()=>{
     if(!confirm('Start a new, empty atlas? Save to a file first if you want to keep this one.')) return;
-    S=blank(); save(); resolveSites(); drawSites(); paint(); brand(); renderOverview(); toast('New atlas');
+    closeLightbox(); S=blank(); clearSel(); sweepPhotos(); save();
+    resolveSites(); drawSites(); paint(); brand(); renderOverview(); toast('New atlas');
   };
+}
+const mb=b=>b>=1048576?(b/1048576).toFixed(1)+' MB':Math.max(1,Math.round(b/1024))+' KB';
+// Photos are the only thing here big enough to matter, so the count travels
+// with the figure — it is the number you act on when space runs low.
+function showUsage(){
+  const line=document.getElementById('a-usage'), bar=document.getElementById('a-meter');
+  if(!line) return;
+  const shots=[...usedPhotoIds()].filter(id=>pix(id)).length;
+  const done=(used,quota)=>{
+    const el=document.getElementById('a-usage'); if(!el) return;
+    el.textContent=`${shots} photo${shots===1?'':'s'}`
+      +(used?` · ${mb(used)} used`:'')+(quota?` of ${mb(quota)} available`:'');
+    const b=document.getElementById('a-meter');
+    if(b&&quota){ const p=Math.min(100,used/quota*100);
+      b.style.width=Math.max(p,used?.6:0).toFixed(2)+'%'; b.classList.toggle('hot',p>80); }
+  };
+  line.textContent=`${shots} photo${shots===1?'':'s'} · measuring…`;
+  if(bar) bar.style.width='0';
+  if(navigator.storage&&navigator.storage.estimate){
+    navigator.storage.estimate().then(r=>done(r.usage||0,r.quota||0)).catch(()=>done(0,0));
+  } else done(0,0);
+}
+
+/* ---------- every site on file ----------
+   The map answers "what is near here" and a country answers "what is in here";
+   this answers "what have I got", in one scrolling sheet led by the pictures.
+   The search text and filter survive a redraw, so attaching or removing a photo
+   from here leaves you where you were. */
+let galQ='', galF='all';
+const GAL_FILTERS=[['all','All'],['done','Visited'],['todo','Not yet'],['pix','With photos'],['own','Mine']];
+function galMatch(s){
+  if(galF==='done'&&!isDone(s.id)) return false;
+  if(galF==='todo'&&isDone(s.id)) return false;
+  if(galF==='pix'&&!photoCount(s.id)) return false;
+  if(galF==='own'&&!s.own) return false;
+  const q=galQ.trim().toLowerCase();
+  if(!q) return true;
+  return (s.name+' '+(s.cname||s.country)+' '+(s.hook||'')).toLowerCase().indexOf(q)>=0;
+}
+function renderSites(){
+  curView={kind:'sites',fid:null};
+  kicker.textContent='All sites'; back.style.display='inline-block'; hlabel.textContent='All sites';
+  const all=allSites().slice().sort((a,b)=>
+    (a.cname||a.country||'~').localeCompare(b.cname||b.country||'~')||a.name.localeCompare(b.name));
+  const list=all.filter(galMatch);
+  const shots=all.reduce((n,s)=>n+photoCount(s.id),0);
+  pbody.innerHTML=`
+    <h2 class="dossier">All sites</h2>
+    <div class="meta">${all.length} on file · ${all.filter(s=>isDone(s.id)).length} visited · ${shots} photo${shots===1?'':'s'}</div>
+    <div class="galbar"><input id="g-q" placeholder="Search name, country or hook" value="${esc(galQ)}"></div>
+    <div class="chips">${GAL_FILTERS.map(([k2,label])=>
+      `<button class="chip ${galF===k2?'on':''}" data-filter="${k2}">${label}</button>`).join('')}</div>
+    ${!all.length?'<p class="empty">No sites yet. Select a territory on the map to add the first one, or open a save file you already have.</p>'
+      :!list.length?'<p class="empty">Nothing matches that. Clear the search or pick another filter.</p>'
+      :`<div class="gal">${list.map(galCard).join('')}</div>`}`;
+
+  // Typing rebuilds the list, so the field has to be handed back exactly as it
+  // was — caret included, or editing mid-word throws you to the end.
+  const q=document.getElementById('g-q');
+  q.oninput=()=>{
+    const at=q.selectionStart, y=pbody.scrollTop;
+    galQ=q.value;
+    renderSites();
+    pbody.scrollTop=y;
+    const el=document.getElementById('g-q');
+    el.focus();
+    try{ el.setSelectionRange(at,at); }catch(e){}
+  };
+  pbody.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{
+    galF=b.dataset.filter; renderSites(); pbody.scrollTop=0; });
+  pbody.querySelectorAll('.galcard').forEach(el=>{
+    el.onclick=ev=>{
+      const s=allSites().find(x=>x.id===el.dataset.site); if(!s) return;
+      // tapping the picture opens the picture; anywhere else opens the site
+      if(ev.target.dataset.view!==undefined) openLightbox(s.id,+ev.target.dataset.view);
+      else selectSite(s);
+    };
+  });
+}
+function galCard(s){
+  const cover=coverSrc(s.id), n=photoCount(s.id), ci=coverIdx(s.id), done=isDone(s.id);
+  return `<figure class="galcard ${done?'done':''} ${sel.site===s.id?'sel':''}" data-site="${esc(s.id)}">
+    <div class="galshot">
+      ${cover?`<img src="${esc(cover)}" alt="${esc(s.name)}" loading="lazy" data-view="${ci}">`
+             :'<span class="galnone">No photo</span>'}
+      ${done?`<b class="galtick ${s.own?'own':''}">✓</b>`:''}
+      ${n>1?`<b class="galcount">${n} photos</b>`:''}
+    </div>
+    <figcaption class="galcap">
+      <span class="galname">${esc(s.name)}</span>
+      <span class="galsub">${esc(s.cname||s.country||'Unplaced')}</span>
+    </figcaption></figure>`;
 }
 
 /* ---------- country ---------- */
-let curFid=null;                  // the country whose cards are on screen, for the lightbox
+let curView={kind:'overview',fid:null};   // what the panel is showing, so edits can redraw it
 function renderCountry(fid,openId){
-  curFid=fid;
+  curView={kind:'country',fid:fid};
   const f=features.find(x=>String(x.id)===fid);
   const name=f?f.properties.name:'Unknown';
   const sites=allSites().filter(s=>s.fid===fid);
@@ -749,6 +1093,7 @@ function renderCountry(fid,openId){
     save(); endPick(); drawSites(); paint(); renderCountry(fid); toast('Entry added');
   };
   if(openId){ const c=document.getElementById('card-'+cssId(openId)); if(c) c.classList.add('open'); }
+  markCards();
 }
 function setPick(lat,lng){
   const a=document.getElementById('f-lat'), b=document.getElementById('f-lng');
@@ -760,28 +1105,32 @@ function endPick(){ pickMode=false; svg.classed('picking',false); }
 
 function card(s){
   const r=S.places[s.id]||{}, cid=cssId(s.id), sid=esc(s.id);
-  const ph=photosOf(s.id), ci=coverIdx(s.id), n=ph.length;
-  const hero=ci<0?'':`<figure class="hero">
-        <img src="${esc(ph[ci])}" alt="${esc(s.name)}" data-view="${ci}" data-site="${sid}">
+  const ph=photosOf(s.id), ci=coverIdx(s.id), n=ph.length, cover=coverSrc(s.id);
+  const hero=!cover?'':`<figure class="hero">
+        <img src="${esc(cover)}" alt="${esc(s.name)}" data-view="${ci}" data-site="${sid}">
         <figcaption><b>Main photo</b>${n>1?` · ${n} on file`:''}</figcaption>
       </figure>`;
-  const grid=n?`<div class="photos">${ph.map((p,i)=>`<figure class="${i===ci?'main':''}">
-          <img src="${esc(p)}" alt="" data-view="${i}" data-site="${sid}">
-          ${i===ci?'<b class="badge">Main</b>':''}
+  // A photo whose picture is missing keeps its slot rather than shifting the
+  // rest along, so nothing else in the record silently changes meaning.
+  const grid=n?`<div class="photos">${ph.map((p,i)=>{const d=pix(p);
+        return `<figure class="${i===ci?'main':''}">
+          ${d?`<img src="${esc(d)}" alt="" data-view="${i}" data-site="${sid}">`
+             :'<span class="missing">Picture<br>unavailable</span>'}
+          ${i===ci&&d?'<b class="badge">Main</b>':''}
           <div class="pacts">
-            ${i===ci?'':`<button data-main="${i}" data-site="${sid}" title="Set as main photo">★</button>`}
+            ${i===ci||!d?'':`<button data-main="${i}" data-site="${sid}" title="Set as main photo">★</button>`}
             <button data-del="${i}" data-site="${sid}" title="Remove photo">×</button>
           </div>
-        </figure>`).join('')}</div>`
+        </figure>`;}).join('')}</div>`
     :'<p class="empty">None attached. The first photo you add becomes the main one.</p>';
-  return `<div class="card ${r.visited?'done':''}" id="card-${cid}" data-site="${sid}">
+  return `<div class="card ${r.visited?'done':''} ${sel.site===s.id?'sel':''}" id="card-${cid}" data-site="${sid}">
     <div class="cardtop">
       <div class="chk" data-chk="${sid}">✓</div>
       <div style="min-width:0">
         <p class="cardname">${esc(s.name)}</p>
         ${s.hook?`<p class="hook">${esc(s.hook)}</p>`:''}
       </div>
-      ${ci<0?'':`<img class="cardthumb" src="${esc(ph[ci])}" alt="">`}
+      ${cover?`<img class="cardthumb" src="${esc(cover)}" alt="">`:''}
     </div>
     <div class="cardbody">
       ${hero}
@@ -800,9 +1149,12 @@ function card(s){
 }
 // Photo edits redraw the whole panel, and a card that jumped back to the top of
 // the list after every removal would be unusable — hold the scroll where it was.
-function reCards(fid,openId){
+// Whichever view is up gets rebuilt, since photos show in all of them.
+function refreshView(openId){
   const y=pbody.scrollTop;
-  renderCountry(fid,openId);
+  if(curView.kind==='country') renderCountry(curView.fid,openId);
+  else if(curView.kind==='sites') renderSites();
+  else renderOverview();
   pbody.scrollTop=y;
 }
 function wireCards(fid){
@@ -818,7 +1170,10 @@ function wireCards(fid){
         if(r.visited) toast('Marked visited');
         return;
       }
-      cardEl.classList.toggle('open');
+      // opening a card is a selection: the marker and its territory light up
+      const opened=cardEl.classList.toggle('open');
+      if(opened) focusSite(id);
+      else if(sel.site===id){ sel.site=null; paint(); markCards(); }
     };
   });
   bySite('[data-note]').forEach(t=>{ t.onchange=t.onblur=()=>{ rec(t.dataset.note).notes=t.value; save(); }; });
@@ -831,37 +1186,50 @@ function wireCards(fid){
       const queue=Array.from(inp.files||[]).filter(f=>!f.type||f.type.indexOf('image/')===0);
       inp.value='';                       // let the same picture be attached again later
       if(!queue.length) return;
-      let added=0;
+      // Each picture is written to storage before the record points at it, so a
+      // batch that runs out of room keeps the ones that did land instead of
+      // leaving the newest few pointing at nothing.
+      let added=0, failed=0;
+      toast(queue.length===1?'Attaching…':'Attaching '+queue.length+' photos…');
       (function next(){
         const f=queue.shift();
         if(!f){
-          if(!added){ toast('Nothing could be read'); return; }
-          save(); reCards(fid,id);
-          toast(added===1?'Photo attached':added+' photos attached');
+          if(added) save();
+          refreshView(id);
+          toast(!added?'Nothing could be stored'
+            :(failed?added+' attached, '+failed+' failed'
+                    :(added===1?'Photo attached':added+' photos attached')));
           return;
         }
         shrink(f,1000,d=>{
-          if(d){ const r=rec(id); (r.photos=r.photos||[]).push(d); added++; }
-          next();
+          if(!d){ failed++; return next(); }
+          const pid=newPhotoId();
+          storePhoto(pid,d).then(ok=>{
+            if(ok){ (rec(id).photos=rec(id).photos||[]).push(pid); added++; } else failed++;
+            next();
+          });
         });
       })();
     };
   });
   bySite('[data-del]').forEach(b=>{
     b.onclick=ev=>{ ev.stopPropagation();
-      if(dropPhoto(b.dataset.site,+b.dataset.del)) reCards(fid,b.dataset.site); };
+      if(dropPhoto(b.dataset.site,+b.dataset.del)) refreshView(b.dataset.site); };
   });
   bySite('[data-main]').forEach(b=>{
     b.onclick=ev=>{ ev.stopPropagation();
       if(setCover(b.dataset.site,+b.dataset.main)){
-        reCards(fid,b.dataset.site); toast('Main photo set'); } };
+        refreshView(b.dataset.site); toast('Main photo set'); } };
   });
   bySite('[data-view]').forEach(img=>{
     img.onclick=ev=>{ ev.stopPropagation(); openLightbox(img.dataset.site,+img.dataset.view); };
   });
   bySite('[data-drop]').forEach(b=>{
-    b.onclick=()=>{ S.own=S.own.filter(x=>x.id!==b.dataset.drop); delete S.places[b.dataset.drop];
-      save(); drawSites(); paint(); renderCountry(fid); };
+    b.onclick=()=>{ const id=b.dataset.drop;
+      if(!confirm('Delete this entry and everything attached to it?')) return;
+      S.own=S.own.filter(x=>x.id!==id); delete S.places[id];
+      if(sel.site===id) sel.site=null;
+      sweepPhotos(); save(); drawSites(); paint(); renderCountry(fid); toast('Entry deleted'); };
   });
 }
 // Always answers, with null when the picture cannot be read, so a batch of
@@ -908,23 +1276,27 @@ function drawLightbox(){
   if(!ph.length){ closeLightbox(); return; }
   lb.i=Math.max(0,Math.min(lb.i,ph.length-1));
   const s=allSites().find(x=>x.id===lb.site), isMain=coverIdx(lb.site)===lb.i;
-  lbImg.src=ph[lb.i];
+  const d=pix(ph[lb.i]);
+  if(d) lbImg.src=d; else lbImg.removeAttribute('src');
   lbCount.textContent=(lb.i+1)+' / '+ph.length;
-  lbName.textContent=s?s.name:'';
+  lbName.textContent=(s?s.name:'')+(d?'':' — picture unavailable');
   lbMain.textContent=isMain?'✓ Main photo':'Set as main';
-  lbMain.disabled=isMain; lbMain.classList.toggle('on',isMain);
+  lbMain.disabled=isMain||!d; lbMain.classList.toggle('on',isMain);
   lbPrev.disabled=lbNext.disabled=ph.length<2;
 }
-function closeLightbox(){ lbEl.hidden=true; lbImg.removeAttribute('src'); lb={site:null,i:0}; }
+function closeLightbox(){
+  if(lbEl.hidden) return;
+  lbEl.hidden=true; lbImg.removeAttribute('src'); lb={site:null,i:0};
+}
 function lbStep(d){
   const n=photosOf(lb.site).length; if(n<2) return;
   lb.i=(lb.i+d+n)%n; drawLightbox();
 }
 // the panel behind holds the same photos, so it has to follow along
 function lbRefresh(keepOpen){
-  const site=lb.site;
-  if(curFid!=null) reCards(curFid,site);
-  if(keepOpen){ lb.site=site; drawLightbox(); } else closeLightbox();
+  const site=lb.site, i=lb.i;
+  refreshView(site);
+  if(keepOpen){ lb.site=site; lb.i=i; drawLightbox(); } else closeLightbox();
 }
 lbPrev.onclick=()=>lbStep(-1);
 lbNext.onclick=()=>lbStep(1);
@@ -966,9 +1338,17 @@ function saveToFile(){
   setTimeout(()=>URL.revokeObjectURL(a.href),1000);
   toast('Saved to file');
 }
+// An opened file carries its pictures inline; they are moved into the photo
+// store, and whatever the previous atlas held is released.
 function applySave(o,msg){
-  S=readSave(o); save(); resolveSites(); drawSites(); paint(); brand();
-  sel={type:null,id:null}; renderOverview(); openPanel(); toast(msg);
+  closeLightbox();
+  S=readSave(o);
+  adoptInline().then(sweepPhotos).then(()=>{
+    save(); resolveSites(); drawSites(); paint(); brand();
+    clearSel(); renderOverview(); openPanel(); toast(msg);
+  }).catch(e=>{ console.error(e); toast('Atlas opened, but photos could not be stored');
+    save(); resolveSites(); drawSites(); paint(); brand();
+    clearSel(); renderOverview(); openPanel(); });
 }
 document.getElementById('openfile').onchange=function(){
   const f=this.files&&this.files[0]; if(!f) return;

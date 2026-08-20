@@ -13,10 +13,25 @@ thumbnails under the notes; click any one to open it full screen, where the arro
 arrows or a swipe move between them.
 
 One photo is the site's **main** one. It is the picture shown wherever the site is presented: as a
-banner at the top of the site once it is selected, as a thumbnail on the collapsed card, and beside
-the site in the overview's visited list. The first photo you attach takes the role; press ★ on any
-other thumbnail, or **Set as main** in the full-screen view, to move it. Remove the main photo and
-the first remaining one takes over.
+banner at the top of the site once it is selected, as a thumbnail on the collapsed card, on its card
+in the gallery, and beside the site in the overview's visited list. The first photo you attach takes
+the role; press ★ on any other thumbnail, or **Set as main** in the full-screen view, to move it.
+Remove the main photo and the first remaining one takes over.
+
+## All sites
+
+**Sites** in the header opens every site on file as a gallery, each led by its main photo, whether
+or not you have been there. Search by name, country or hook, and narrow to what is visited, still
+to do, has photos, or is your own entry. Tapping a card's picture opens it full screen; tapping
+anywhere else on the card goes to the site.
+
+## Selection
+
+A country and a site are selected together, not one instead of the other. Open a site — from a
+marker, from the gallery, or by opening its card inside a country — and both the marker and the
+territory holding it are lit on the map, so the panel and the map never disagree about where you
+are. The selected marker keeps a pulsing ring, which is what makes a site picked from a list
+findable among its neighbours.
 
 It is a single static page. No account, no server, no tracking, and it works with no connection
 once loaded.
@@ -45,7 +60,7 @@ progress together, so opening it anywhere restores exactly what you had.
 {
   "format": "atlas-save",
   "version": 2,
-  "app": "1.1.0",
+  "app": "1.2.0",
   "name": "My Atlas",
   "tagline": "Places worth the detour",
   "sites": [
@@ -72,9 +87,9 @@ progress together, so opening it anywhere restores exactly what you had.
 **Save to file** downloads it. **Open file…** loads one back. **New atlas** clears to an empty
 world. The **Name** and **Tagline** fields rename the atlas — the header and the browser tab follow.
 
-Your work is also written to this browser's `localStorage` after every change, so closing the tab
-loses nothing. That copy is per-browser and per-device; the file is how you move between them, and
-how you back up.
+Your work is also written to this browser's storage after every change, so closing the tab loses
+nothing. That copy is per-browser and per-device; the file is how you move between them, and how you
+back up. **Space used** at the foot of the overview shows the photo count and how much room is left.
 
 ### Writing a catalogue by hand
 
@@ -131,17 +146,31 @@ the source: `APP_VERSION` in `index.html`. Two things follow it and are bumped b
 
 | | |
 |---|---|
+| 1.2.0 | Photos moved to IndexedDB, ending the loss of recent attachments. Gallery of every site. Country and site selected together. Save format 2, unchanged. |
 | 1.1.0 | Photo grid, full-screen viewer, and a main photo per site (`cover`). Save format 2. |
 | 1.0.0 | First release. Save format 1. |
 
 Save format 2 only adds the optional `cover` pointer, so a version 1 file opens unchanged — a site
 with photos and no pointer simply treats the first as its main one.
 
-## Notes
+## Where photos are kept
 
-Photos are downscaled to 1000px and embedded in the save file as data URLs. That keeps a file
-self-contained, but a heavily illustrated atlas gets large, and `localStorage` is capped at a few
-megabytes per origin — the app warns you when a write fails.
+Photos are downscaled to 1000px and stored as data URLs. In a **save file** they are embedded, which
+is what keeps one file self-contained — a heavily illustrated atlas therefore gets large.
+
+In the **browser**, up to 1.1.0, the whole atlas including its pictures went into `localStorage`.
+That is capped near 5 MB, so past roughly twenty photos every write threw and each edit made after
+that was gone on the next visit — newest first, which is why it read as "the last ones disappear".
+
+From 1.2.0 the atlas lives in IndexedDB instead: the record in one store, each photo on its own key
+in another. The quota is orders of magnitude larger, and editing a note no longer rewrites every
+picture. An existing `localStorage` atlas is moved across automatically the first time 1.2.0 runs;
+a browser with no IndexedDB at all falls back to the old behaviour, and the overview says which is
+in use.
+
+The app also asks for persistent storage, which stops a browser reclaiming the atlas on its own.
+That is a request, not a guarantee, and clearing site data still erases everything — so keep a file
+copy of anything you would not want to lose.
 
 Map geometry is [world-atlas](https://github.com/topojson/world-atlas) (Natural Earth, public
 domain), rendered with [D3](https://d3js.org/) and topojson-client, both loaded from a CDN and
