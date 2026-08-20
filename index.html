@@ -355,6 +355,10 @@ let S=blank();
 
 const num=v=>{const n=parseFloat(v); return isFinite(n)?n:null;};
 const str=(v,d)=>typeof v==='string'?v:(d===undefined?'':d);
+// Saves written before the unnumbered territories got ids of their own carry
+// the literal string "undefined" as a country reference; it names nothing now.
+const fidOf=v=>{ const s=v==null?'':String(v);
+  return (!s||s==='undefined'||s==='null')?null:s; };
 
 function readSites(arr){
   if(!Array.isArray(arr)) return [];
@@ -377,7 +381,7 @@ function readOwn(arr){
   return arr.map(o=>{
     if(!o||typeof o!=='object'||!str(o.name).trim()) return null;
     return {id:str(o.id).trim()||('o'+Date.now()+Math.random().toString(36).slice(2,6)),
-            country:str(o.country),cname:str(o.cname),fid:o.fid==null?null:String(o.fid),
+            country:str(o.country),cname:str(o.cname),fid:fidOf(o.fid),
             name:str(o.name),hook:str(o.hook),lore:str(o.lore),
             lat:num(o.lat),lng:num(o.lng),own:true};
   }).filter(Boolean);
@@ -687,6 +691,7 @@ function resizeMarks(){
 
 boot().then(()=>d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json')).then(topo=>{
   features=topojson.feature(topo,topo.objects.countries).features;
+  nameFeatures();
   features.forEach(f=>byName.set(norm(f.properties.name),f));
 
   gGrat.append('path').datum(d3.geoGraticule10()).attr('fill','none')
@@ -714,6 +719,23 @@ boot().then(()=>d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countrie
   console.error(e);
 });
 
+/* Natural Earth gives no ISO number to the territories it does not treat as
+   states, so world-atlas hands N. Cyprus, Somaliland and Kosovo the very same
+   undefined id. Every lookup here keys off that id, which made the three behave
+   as one country: marking any of them visited marked all three, selecting one
+   selected the others, and their sites piled onto a single page. Give anything
+   the dataset leaves unnumbered a stable id of our own, derived from its name
+   so it survives a reload and matches what earlier saves will resolve to. */
+function nameFeatures(){
+  const seen=new Set();
+  features.forEach(f=>{
+    let id=f.id==null?'':String(f.id);
+    if(!id||id==='undefined'||id==='null') id='x-'+(slug(f.properties&&f.properties.name)||'unnamed');
+    while(seen.has(id)) id+='-2';
+    seen.add(id);
+    f.id=id;
+  });
+}
 function lookup(name){
   const n=norm(name);
   if(!n) return null;
@@ -730,10 +752,14 @@ function lookup(name){
 function resolveSites(){
   if(!features.length) return;
   const unresolved=[];
+  const known=new Set(features.map(f=>String(f.id)));
   allSites().forEach(s=>{
     const f=lookup(s.country);
     if(f){ s.fid=String(f.id); s.cname=f.properties.name; }
-    else if(!s.fid){ s.fid=null; if(s.country) unresolved.push(s.country); }
+    // a reference the dataset no longer answers to is worse than none: it would
+    // strand the site on a country page that can never be reached
+    else{ if(!known.has(fidOf(s.fid))) s.fid=null;
+      if(!s.fid&&s.country) unresolved.push(s.country); }
   });
   if(unresolved.length) console.warn('unresolved countries',[...new Set(unresolved)]);
 }
@@ -867,8 +893,16 @@ function markCards(){
 // getElementById lookups built by concatenation — swap it for a safe token
 const cssId=id=>String(id).replace(/[^A-Za-z0-9_-]/g,'_');
 
+// Counted against the map rather than against the keys held, so a flag left by
+// an older save — or by a catalogue built on a different dataset — cannot pad
+// the total with a territory that is not there to be seen.
+const visitedFeatures=()=>features.filter(f=>S.countries[f.id]);
+function visitedCount(){
+  return features.length?visitedFeatures().length
+                        :Object.values(S.countries).filter(Boolean).length;
+}
 function stats(){
-  document.getElementById('s-countries').textContent=Object.values(S.countries).filter(Boolean).length;
+  document.getElementById('s-countries').textContent=visitedCount();
   document.getElementById('s-sites').textContent=allSites().filter(s=>isDone(s.id)).length;
 }
 
@@ -877,10 +911,10 @@ function renderOverview(){
   curView={kind:'overview',fid:null};
   kicker.textContent='Overview'; back.style.display='none'; hlabel.textContent=S.name;
   const total=features.length||177;
-  const cv=Object.values(S.countries).filter(Boolean).length;
+  const cv=visitedCount();
   const done=allSites().filter(s=>isDone(s.id));
   const pct=total?(cv/total*100):0;
-  const visited=features.filter(f=>S.countries[f.id]).sort((a,b)=>a.properties.name.localeCompare(b.properties.name));
+  const visited=visitedFeatures().slice().sort((a,b)=>a.properties.name.localeCompare(b.properties.name));
   const n=allSites().length;
   pbody.innerHTML=`
     <h2 class="dossier">${esc(S.name)}</h2>
@@ -1362,7 +1396,7 @@ document.getElementById('openfile').onchange=function(){
   this.value='';   // let the same file be reopened later
 };
 function copyReport(){
-  const cv=features.filter(f=>S.countries[f.id]).map(f=>f.properties.name);
+  const cv=visitedFeatures().map(f=>f.properties.name);
   const done=allSites().filter(s=>isDone(s.id));
   const t=[S.name.toUpperCase()+(S.tagline?' — '+S.tagline.toUpperCase():''),'',
     `Territories visited: ${cv.length} of ${features.length}`,cv.join(', ')||'—','',

@@ -109,9 +109,14 @@ without your ticks sliding onto the wrong sites. Keep an `id` stable and its pro
 
 `country` is matched against [Natural Earth](https://www.naturalearthdata.com/) names at 110m
 resolution, with aliases for the common variants (`USA`, `UK`, `Russia`). A few use cartographic
-short forms — `Dem. Rep. Congo`, `Macedonia`, `Bosnia and Herz.` — and very small states are not in
-the dataset at all. A site whose country does not resolve still appears on the map at its
-coordinates, but gets no country page; unresolved names are logged to the browser console.
+short forms — `Dem. Rep. Congo`, `Macedonia`, `Bosnia and Herz.`, `N. Cyprus` — and very small
+states are not in the dataset at all. A site whose country does not resolve still appears on the map
+at its coordinates, but gets no country page; unresolved names are logged to the browser console.
+
+Natural Earth assigns no ISO number to the territories it does not treat as states, so the dataset
+gives `N. Cyprus`, `Somaliland` and `Kosovo` no id at all. The app assigns those an id of its own
+from the name (`x-n-cyprus` and so on), which is what keeps them three separate countries rather
+than one. Those ids appear in `progress.countries` in place of a number.
 
 `sites` also accepts the compact array form `["Country", "Name", "hook", "lore", lat, lng]`, which
 is easier to type in bulk.
@@ -146,7 +151,7 @@ the source: `APP_VERSION` in `index.html`. Two things follow it and are bumped b
 
 | | |
 |---|---|
-| 1.2.0 | Photos moved to IndexedDB, ending the loss of recent attachments. Gallery of every site. Country and site selected together. Save format 2, unchanged. |
+| 1.2.0 | Photos moved to IndexedDB, ending the loss of recent attachments. Gallery of every site. Country and site selected together. N. Cyprus, Somaliland and Kosovo separated. Save format 2, unchanged. |
 | 1.1.0 | Photo grid, full-screen viewer, and a main photo per site (`cover`). Save format 2. |
 | 1.0.0 | First release. Save format 1. |
 
