@@ -213,13 +213,25 @@ h2.dossier{font-family:var(--serif);font-size:30px;font-weight:400;margin:0 0 2p
 
 /* ---- scales: a numbered value a site or a country can carry ---- */
 .scale{margin:0 0 11px}
+.scale.editing{border:1px solid var(--cyan-dim);background:#0b1416;padding:8px 9px;margin:0 -9px 11px}
 .scalehead{display:flex;align-items:baseline;gap:8px;margin-bottom:5px}
+.scalehead .fieldlabel{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* shut there is nothing between the name and the button, so the button takes
+   the gap itself and still lands where it does when the row is open */
+.scaleedit{flex:none}
+.scale:not(.editing) .scaleedit{margin-left:auto}
 .scaleval{margin-left:auto;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--cyan)}
 .scaleval.off{color:#4d585e}
+.scaleedit{padding:3px 7px;font-size:9px;letter-spacing:.14em;border-color:var(--line)}
+.scale.editing .scaleedit{border-color:var(--cyan-dim);color:var(--cyan)}
 .steps{display:flex;gap:4px}
 .steps button{flex:1;padding:6px 0;font-size:11px;letter-spacing:.04em;min-width:0}
 .steps button.on{border-color:var(--cyan);color:var(--cyan);background:#12262880}
 .steps button.clear{flex:0 0 34px;color:var(--dim)}
+/* Shut, the row has nothing to press: it is a reading, not a control. */
+.steps.locked{align-items:center;gap:9px;min-height:29px}
+.scalelvl{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--bone)}
+.scalenone{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#4d585e}
 .pips{display:inline-flex;gap:2.5px;align-items:center;vertical-align:middle}
 .pips i{width:5px;height:5px;border:1px solid var(--cyan-dim);border-radius:50%}
 .pips i.on{background:var(--cyan);border-color:var(--cyan)}
@@ -245,6 +257,9 @@ select{font-family:var(--mono);font-size:11.5px;color:var(--bone);background:#0a
   border:1px solid var(--line2);padding:7px 8px;width:100%}
 select:focus{outline:none;border-color:var(--cyan-dim)}
 .two3{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:9px}
+.tally{border:1px solid var(--line2);background:#0a1013;padding:8px 9px;margin:2px 0 11px;
+  font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--cyan)}
+.tally.warn{border-color:#5d3a2e;color:var(--rust)}
 
 .statgrid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);margin-bottom:16px}
 .statgrid div{background:#0b1013;padding:12px}
@@ -366,7 +381,7 @@ select:focus{outline:none;border-color:var(--cyan-dim)}
    --------------------------------------------------------------- */
 
 const KEY='atlas-v1';
-const APP_VERSION='1.3.0';        // shown in the overview; bump with sw.js CACHE
+const APP_VERSION='1.3.1';        // shown in the overview; bump with sw.js CACHE
 const SAVE_VERSION=3;             // 2 added the main-photo pointer; 3 adds scales
 const DEFAULT_NAME='Atlas', DEFAULT_TAG='Site Log';
 /* What an attached photo is kept at. Large enough that an exported bundle has
@@ -511,7 +526,11 @@ function writeTerr(){
 function readSave(o){
   if(!o||typeof o!=='object') throw new Error('not an atlas file');
   const p=(o.progress&&typeof o.progress==='object')?o.progress:{};
-  const obj=v=>(v&&typeof v==='object'&&!Array.isArray(v))?v:{};
+  // Copied, not adopted: holding the opened document's own objects would make
+  // the atlas and the file one and the same, so the next edit would quietly
+  // rewrite the thing you just opened — and a file re-read afterwards would no
+  // longer be the file that was on disk.
+  const obj=v=>(v&&typeof v==='object'&&!Array.isArray(v))?Object.assign({},v):{};
   terrPending=readTerr(o.territories);
   return {
     name:str(o.name).trim()||DEFAULT_NAME,
@@ -924,31 +943,62 @@ function pips(m,v,cls){
   for(let i=m.min;i<=m.max;i++) out+=`<i class="${i<=v?'on':''}"></i>`;
   return `<span class="${cls||'pips'} ${v>=hotAt(m)?'hot':''}" title="${esc(m.label+' — '+levelText(m,v))}">${out}</span>`;
 }
-/* The control for one value: a step per point, and a way back to unset. */
-function scaleRow(m,v,attr){
-  let steps='';
-  for(let i=m.min;i<=m.max;i++)
-    steps+=`<button class="step ${v===i?'on':''}" ${attr} data-set="${i}"`
-      +` title="${esc(levelName(m,i)||m.label+' '+i)}">${i}</button>`;
-  return `<div class="scale">
+/* The control for one value.
+   A row of steps sitting live inside a card is a value one stray thumb can
+   change, and a wrong number is worse than none — you cannot tell it apart from
+   one you meant. So a row is read-only until it is opened for editing: closed it
+   is a line of pips with nothing to press, open it is the steps and a way back
+   to unset. Only one row is ever open, and setting a value shuts it again. */
+let scaleEdit=null;               // '<kind>:<id>:<key>' of the row open for editing
+const lockScales=()=>{ scaleEdit=null; };
+function scaleRow(m,v,kind,id){
+  const row=kind+':'+id+':'+m.key, open=scaleEdit===row;
+  const attr=`data-scale="${esc(m.key)}" `
+    +(kind==='terr'?`data-terr="${esc(id)}"`:`data-site="${esc(id)}"`);
+  let body;
+  if(open){
+    let steps='';
+    for(let i=m.min;i<=m.max;i++)
+      steps+=`<button class="step ${v===i?'on':''}" ${attr} data-set="${i}"`
+        +` title="${esc(levelName(m,i)||m.label+' '+i)}">${i}</button>`;
+    body=`<div class="steps">${steps}<button class="step clear" ${attr} data-set="" title="Clear this value">–</button></div>`;
+  } else {
+    body=`<div class="steps locked">${v==null
+      ? '<span class="scalenone">Not set</span>'
+      : pips(m,v)+`<span class="scalelvl">${esc(levelName(m,v)||m.label+' '+v)}</span>`}</div>`;
+  }
+  // Shut, the reading below says everything, so the head carries only the name;
+  // open, it says what to do and keeps the number that is there now in sight.
+  return `<div class="scale ${open?'editing':''}">
     <div class="scalehead"><span class="fieldlabel" style="margin:0">${esc(m.label)}</span>
-      <span class="scaleval ${v==null?'off':''}">${v==null?'Not set':esc(levelText(m,v))}</span></div>
-    <div class="steps">${steps}<button class="step clear" ${attr} data-set="" title="Clear">–</button></div>
+      ${open?`<span class="scaleval">${v==null?'Pick a level':esc(v+'/'+m.max)}</span>`:''}
+      <button class="scaleedit" data-scaleedit="${esc(row)}">${open?'Done':'Change'}</button></div>
+    ${body}
   </div>`;
 }
 // Every step button in the panel, wherever it was drawn, writes its value and
 // redraws — the number shows in the gallery and the tooltip as well as here.
 function wireScales(after){
+  pbody.querySelectorAll('[data-scaleedit]').forEach(b=>{
+    b.onclick=ev=>{
+      ev.stopPropagation();
+      scaleEdit=(scaleEdit===b.dataset.scaleedit)?null:b.dataset.scaleedit;
+      if(after) after(b);
+    };
+  });
   pbody.querySelectorAll('.step[data-scale]').forEach(b=>{
     b.onclick=ev=>{
       ev.stopPropagation();
       const key=b.dataset.scale, raw=b.dataset.set, v=raw===''?null:+raw;
+      const m=scaleFor(key);
       if(b.dataset.terr!==undefined) setTval(b.dataset.terr,key,v);
       else{
         const s=allSites().find(x=>x.id===b.dataset.site);
         if(!s) return;
         setSval(s,key,v);
       }
+      lockScales();                 // one deliberate change at a time
+      if(m) toast(m.label+' · '+(v==null?'cleared':levelText(m,v)));
       if(after) after(b);
     };
   });
@@ -1034,7 +1084,7 @@ function releaseNav(){
   try{ history.back(); }catch(e){}
 }
 function dismiss(fromPop){
-  closeLightbox(); clearSel(); paint(); renderOverview();
+  closeLightbox(); lockScales(); clearSel(); paint(); renderOverview();
   if(isPhone()) panel.classList.remove('open','tall');
   if(fromPop) navPushed=false; else releaseNav();
 }
@@ -1059,22 +1109,22 @@ document.getElementById('handle').onclick=()=>{
 };
 // Leaving a country for the overview keeps the sheet up on a phone, so the
 // history entry still has something to stand for; on desktop it does not.
-back.onclick=()=>{ closeLightbox(); clearSel(); paint(); renderOverview(); if(!isPhone()) releaseNav(); };
+back.onclick=()=>{ closeLightbox(); lockScales(); clearSel(); paint(); renderOverview(); if(!isPhone()) releaseNav(); };
 document.getElementById('btn-atlas').onclick=()=>{
-  closeLightbox(); clearSel(); paint(); renderOverview(); openPanel(); };
-document.getElementById('btn-sites').onclick=()=>{ closeLightbox(); renderSites(); openPanel(); };
+  closeLightbox(); lockScales(); clearSel(); paint(); renderOverview(); openPanel(); };
+document.getElementById('btn-sites').onclick=()=>{ closeLightbox(); lockScales(); renderSites(); openPanel(); };
 document.getElementById('z-in').onclick=()=>svg.transition().duration(250).call(zoom.scaleBy,1.6);
 document.getElementById('z-out').onclick=()=>svg.transition().duration(250).call(zoom.scaleBy,1/1.6);
 document.getElementById('z-reset').onclick=()=>svg.transition().duration(500).call(zoom.transform,d3.zoomIdentity);
 
 function selectCountry(fid,noFly){
-  closeLightbox();
+  closeLightbox(); lockScales();
   sel={country:fid,site:null}; paint(); renderCountry(fid); openPanel(); if(!noFly) flyTo(fid);
 }
 // Reached from a marker, the overview, or the gallery. The site's territory is
 // selected alongside it, so the map shows both the where and the what.
 function selectSite(s){
-  closeLightbox();
+  closeLightbox(); lockScales();
   sel={country:s.fid||null,site:s.id}; paint();
   if(s.fid){ renderCountry(s.fid,s.id); flyTo(s.fid); } else renderOverview();
   openPanel();
@@ -1208,6 +1258,7 @@ function renderOverview(){
         <option value="yes">Scale up, so every file matches</option></select></label>
       <label style="display:block;margin-top:9px"><span class="fieldlabel">File naming</span><input id="x-name" placeholder="{country}/{site}-{n}"></label>
       <p class="note" style="margin-top:6px">Tokens: <b>{country}</b> <b>{site}</b> <b>{n}</b> photo number · <b>{index}</b> running number · <b>{date}</b> · <b>{atlas}</b>. A slash makes a folder. The extension is added for you.</p>
+      <div class="tally" id="x-tally"></div>
       <div class="rowbtns"><button id="x-go">Export bundle</button><button id="x-cancel">Cancel</button></div>
       <p class="note" id="x-note">Photos are stored at up to ${SHOT_MAX} px, so a larger long edge will not add detail.</p>
     </div>
@@ -1465,8 +1516,7 @@ function renderCountry(fid,openId){
     <div class="meta">${sites.length} site${sites.length===1?'':'s'} on file · <span id="c-done">${sites.filter(s=>isDone(s.id)).length}</span> visited</div>
     <button class="bigbtn ${on?'on':''}" id="c-toggle">${on?'✓ Visited — logged':'Mark as visited'}</button>
     ${countryScales().length?`<div class="sechead">This territory</div>
-      ${countryScales().map(m=>scaleRow(m,tval(fid,m.key),
-         `data-scale="${esc(m.key)}" data-terr="${esc(fid)}"`)).join('')}`:''}
+      ${countryScales().map(m=>scaleRow(m,tval(fid,m.key),'terr',fid)).join('')}`:''}
     <div class="sechead">Sites</div>
     ${sites.length?sites.map(card).join(''):'<p class="empty">No sites here yet. Add the first one below.</p>'}
     <div class="rule"></div>
@@ -1561,8 +1611,7 @@ function card(s){
       ${hero}
       ${s.lore?`<p class="lore">${esc(s.lore)}</p>`:''}
       ${s.lat!=null&&s.lng!=null?`<p class="coords">${dms(s.lat,['N','S'])} / ${dms(s.lng,['E','W'])}</p>`:'<p class="coords">No coordinates on file</p>'}
-      ${siteScales().map(m=>scaleRow(m,sval(s,m.key),
-        `data-scale="${esc(m.key)}" data-site="${sid}"`)).join('')}
+      ${siteScales().map(m=>scaleRow(m,sval(s,m.key),'site',s.id)).join('')}
       <p class="fieldlabel">Your notes</p>
       <textarea rows="3" data-note="${sid}" placeholder="Date of visit, conditions, what you saw.">${esc(r.notes||'')}</textarea>
       <p class="fieldlabel" style="margin-top:11px">Photos${n?` · ${n}`:''}</p>
@@ -1903,7 +1952,22 @@ function renderPhoto(src,opt){
         const g=c.getContext('2d');
         g.fillStyle='#000'; g.fillRect(0,0,c.width,c.height);
         g.drawImage(img,sx,sy,sw,sh,0,0,c.width,c.height);
-        c.toBlob(b=>res(b),opt.fmt,opt.fmt==='image/png'?undefined:+opt.q);
+        /* toBlob hands back null for a type the browser will not encode, and
+           older ones do not have it at all — either way the picture would be
+           dropped silently. Fall back to the data URL, which every browser
+           that can draw the canvas can also read. */
+        const q=opt.fmt==='image/png'?undefined:+opt.q;
+        const viaUrl=()=>{
+          try{
+            const u=c.toDataURL(opt.fmt,q), at=u.indexOf(',');
+            if(at<0||u.slice(0,5)!=='data:') return res(null);
+            const bin=atob(u.slice(at+1)), out=new Uint8Array(bin.length);
+            for(let i=0;i<bin.length;i++) out[i]=bin.charCodeAt(i);
+            res(new Blob([out],{type:u.slice(5,u.indexOf(';'))}));
+          }catch(e){ res(null); }
+        };
+        if(!c.toBlob) return viaUrl();
+        c.toBlob(b=>b?res(b):viaUrl(),opt.fmt,q);
       }catch(e){ res(null); }
     };
     img.src=src;
@@ -1929,13 +1993,15 @@ const csvCell=v=>{
   return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
 };
 
-function buildBundle(opt,onStep){
-  const enc=new TextEncoder(), ext=EXT[opt.fmt]||'jpg';
-  const wanted=allSites().filter(s=>
+/* Which sites, and which of their photos, the options select. Split out so the
+   form can say what is about to be written before anything is written — an
+   export that quietly contains no pictures is the one failure you cannot see
+   until you open the file. */
+function bundlePlan(opt){
+  const sites=allSites().filter(s=>
     opt.sites==='done'?isDone(s.id):opt.sites==='pix'?photoCount(s.id)>0:true);
-  // what to render, in the order the files will be numbered
   const jobs=[];
-  wanted.forEach(s=>{
+  sites.forEach(s=>{
     if(opt.photos==='none') return;
     const ph=photosOf(s.id), ci=coverIdx(s.id);
     ph.forEach((pid,i)=>{
@@ -1944,6 +2010,11 @@ function buildBundle(opt,onStep){
       if(data) jobs.push({site:s,i:i,cover:i===ci,data:data});
     });
   });
+  return {sites:sites,jobs:jobs};
+}
+function buildBundle(opt,onStep){
+  const enc=new TextEncoder(), ext=EXT[opt.fmt]||'jpg';
+  const plan=bundlePlan(opt), jobs=plan.jobs;
   const entries=[], rows=[['file','site','country','visited','main','latitude','longitude']
     .concat(S.scales.map(m=>m.label)).concat(['notes']).map(csvCell).join(',')];
   const taken=new Set(), placePhotos={};
@@ -2021,7 +2092,7 @@ function wireBundleForm(){
     const el=get(fields[k]);
     el.value=BUNDLE[k];
     if(el.tagName==='SELECT'&&el.selectedIndex<0) el.value=BUNDLE[k]=blankDefault(k);
-    el.onchange=()=>{ BUNDLE[k]=el.value; if(k==='fmt') noteFormat(); };
+    el.onchange=()=>{ BUNDLE[k]=el.value; noteFormat(); };
   });
   get('x-name').oninput=()=>{ BUNDLE.name=get('x-name').value; };
   function blankDefault(k){ return {sites:'all',photos:'all',fmt:'image/jpeg',q:'0.82',size:'1600',
@@ -2033,6 +2104,22 @@ function wireBundleForm(){
       : BUNDLE.fmt==='image/png'
         ? 'PNG keeps every pixel and ignores quality; the files are several times larger.'
         : 'Photos are stored at up to '+SHOT_MAX+' px, so a larger long edge will not add detail.';
+    tally();
+  }
+  // What the current options would actually write, kept in front of the button.
+  function tally(){
+    const el=get('x-tally');
+    if(!el) return;
+    const plan=bundlePlan(BUNDLE), n=plan.jobs.length;
+    const held=allSites().reduce((t,s)=>t+photoCount(s.id),0);
+    el.className='tally'+(n?'':' warn');
+    el.textContent=n
+      ? n+' photo'+(n===1?'':'s')+' from '
+        +new Set(plan.jobs.map(j=>j.site.id)).size+' site'+(new Set(plan.jobs.map(j=>j.site.id)).size===1?'':'s')
+        +' · '+plan.sites.length+' site'+(plan.sites.length===1?'':'s')+' in the save'
+      : held
+        ? 'No photos match these options — this atlas has '+held+', but none are selected.'
+        : 'This atlas has no photos attached, so the bundle will hold data only.';
   }
   noteFormat();
   get('a-bundle').onclick=()=>{ form.classList.add('open'); pbody.scrollTop=pbody.scrollHeight; };
@@ -2045,18 +2132,80 @@ function wireBundleForm(){
     buildBundle(BUNDLE,(i,total)=>{ if(total>4&&i%4===0) toast('Rendering '+i+' of '+total+'…'); })
       .then(r=>{
         download(r.blob,(slug(S.name)||'atlas')+'.atlas.zip');
-        toast(r.failed?(r.count+' photos exported, '+r.failed+' failed')
-                      :('Bundle saved · '+r.count+' photo'+(r.count===1?'':'s')+' · '+mb(r.blob.size)));
+        toast(r.failed?(r.count+' photo'+(r.count===1?'':'s')+' exported, '+r.failed+' could not be read')
+              :!r.count?'Bundle saved — no photos in it'
+              :('Bundle saved · '+r.count+' photo'+(r.count===1?'':'s')+' · '+mb(r.blob.size)));
       })
       .catch(e=>{ console.error(e); toast('Bundle could not be built'); })
       .then(()=>{ const b=document.getElementById('x-go'); if(b) b.disabled=false; });
   };
 }
+/* ---------------------------------------------------------------
+   Opening a file replaces the atlas, and the photos the old one held are
+   then released — which is right when you are opening your own save, and
+   ruinous when you are opening a catalogue. A catalogue is a file with
+   sites but no progress in it: the shipped list of places, or an updated
+   copy of one. Opening it used to wipe every tick, note and photo without
+   a word, because the file honestly says the progress is empty.
+
+   So a file that carries no progress, opened over an atlas that has some,
+   now offers to merge instead: take its sites, scales and territory values,
+   keep everything you have logged. Site ids are stable slugs, so progress
+   lands back on the same places. Nothing is destroyed without being named.
+   --------------------------------------------------------------- */
+const hasProgress=()=>
+  Object.keys(S.places).length>0||Object.keys(S.countries).length>0||S.own.length>0;
+const fileHasProgress=o=>{
+  const p=(o&&o.progress&&typeof o.progress==='object')?o.progress:{};
+  const n=v=>(v&&typeof v==='object')?Object.keys(v).length:0;
+  return n(p.places)>0||n(p.countries)>0||(Array.isArray(p.own)&&p.own.length>0);
+};
+function progressSummary(){
+  const ticks=allSites().filter(s=>isDone(s.id)).length;
+  const shots=[...usedPhotoIds()].filter(id=>pix(id)).length;
+  const seen=Object.keys(S.countries).length;
+  return [seen?seen+' territor'+(seen===1?'y':'ies')+' marked':'',
+          ticks?ticks+' site'+(ticks===1?'':'s')+' ticked':'',
+          shots?shots+' photo'+(shots===1?'':'s'):''].filter(Boolean).join(', ')||'no progress';
+}
+// Returns the document to open, or null to leave the atlas alone.
+function guardOpen(o){
+  if(fileHasProgress(o)||!hasProgress()) return o;
+  const sites=Array.isArray(o.sites)?o.sites.length:0;
+  if(!sites) return o;
+  const keep=confirm(
+    'That file is a catalogue: '+sites+' sites, and no progress of its own.\n\n'
+    +'This atlas has '+progressSummary()+'.\n\n'
+    +'OK — keep all of that and take the new catalogue\n'
+    +'Cancel — choose whether to erase it instead');
+  if(keep) return mergeCatalogue(o);
+  if(!confirm('Replace this atlas entirely, erasing '+progressSummary()+'?\n\n'
+              +'This cannot be undone. Save to a file first if you are unsure.')) return null;
+  return o;
+}
+/* The incoming catalogue, with this atlas's log written back into it. The
+   places are handed over holding photo ids rather than pictures: adoptInline
+   leaves an id alone and the sweep counts it as still in use, so the photos
+   never have to be rebuilt as base64 to survive the swap. */
+function mergeCatalogue(o){
+  const doc=JSON.parse(JSON.stringify(o));
+  doc.progress={countries:S.countries,places:S.places,own:S.own.map(outOwn)};
+  // a value you set yourself outlives the catalogue's own number for that site
+  const mine=new Map(S.sites.concat(S.own).map(s=>[s.id,s.values||{}]));
+  if(Array.isArray(doc.sites)) doc.sites.forEach(s=>{
+    const had=mine.get(str(s.id).trim()||siteId(s.country,s.name));
+    if(had&&Object.keys(had).length) s.values=Object.assign({},s.values||{},had);
+  });
+  return doc;
+}
 // An opened file carries its pictures inline; they are moved into the photo
 // store, and whatever the previous atlas held is released.
 function applySave(o,msg){
-  closeLightbox();
-  S=readSave(o);
+  const doc=guardOpen(o);
+  if(!doc){ toast('Nothing was changed'); return; }
+  if(doc!==o) msg='Catalogue updated — your progress kept';
+  closeLightbox(); lockScales();
+  S=readSave(doc);
   adoptInline().then(sweepPhotos).then(()=>{
     save(); resolveSites(); drawSites(); paint(); brand();
     clearSel(); renderOverview(); openPanel(); toast(msg);
@@ -2094,12 +2243,13 @@ function openBundle(buf){
         jobs.push({rec:r,i:i,entry:e||null,name:name});
       });
     });
+    let found=0, missing=0;
     return jobs.reduce((chain,j)=>chain.then(()=>{
-      if(!j.entry){ j.rec.photos[j.i]=null; return null; }
+      if(!j.entry){ j.rec.photos[j.i]=null; missing++; return null; }
       return zipRead(j.entry)
         .then(bytes2=>toDataURL(bytes2,j.name))
-        .then(url=>{ j.rec.photos[j.i]=url; })
-        .catch(e=>{ console.error(e); j.rec.photos[j.i]=null; });
+        .then(url=>{ j.rec.photos[j.i]=url; found++; })
+        .catch(e=>{ console.error(e); j.rec.photos[j.i]=null; missing++; });
     }),Promise.resolve()).then(()=>{
       // a photo that went missing must not take the main-photo pointer with it
       Object.keys(places).forEach(id=>{
@@ -2112,7 +2262,7 @@ function openBundle(buf){
         if(!kept.length){ delete r.photos; delete r.cover; }
         else{ r.photos=kept; r.cover=Math.min(cover,kept.length-1); }
       });
-      return doc;
+      return {doc:doc,found:found,missing:missing};
     });
   });
 }
@@ -2138,8 +2288,11 @@ document.getElementById('openfile').onchange=function(){
     try{
       if(isZip){
         toast('Unpacking bundle…');
-        openBundle(buf).then(doc=>applySave(doc,'Bundle opened'))
-          .catch(e=>{ console.error(e); toast('That bundle could not be read'); });
+        openBundle(buf).then(r=>{
+          applySave(r.doc,r.missing
+            ? 'Bundle opened · '+r.missing+' photo'+(r.missing===1?'':'s')+' not in the file'
+            : 'Bundle opened · '+r.found+' photo'+(r.found===1?'':'s'));
+        }).catch(e=>{ console.error(e); toast('That bundle could not be read'); });
       } else {
         applySave(JSON.parse(new TextDecoder().decode(buf)),'Atlas opened');
       }

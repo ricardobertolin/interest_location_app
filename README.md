@@ -32,8 +32,14 @@ cost. The atlas defines them; every site and every territory can then carry a va
 
 Add one under **Scales** in the overview: a name, how many points it runs to, whether it applies to
 sites, to territories, or to both, and optionally a name per point (`Turn up, Easy trip, Committing,
-Hard, Extreme`). Values are set by tapping a step — on the territory itself at the top of a country
-page, and inside each site's card. The `–` step clears a value again.
+Hard, Extreme`).
+
+A value sits on the territory itself at the top of a country page, and inside each site's card. It is
+**read-only until you open it**: shut, the row is pips and a level name with nothing to press; press
+**Change** and it becomes a row of steps. Picking one writes the value and shuts the row again, and
+leaving the page shuts it too. Only one row is ever open. A wrong number is worse than no number —
+you cannot tell it from one you meant — so changing one is always two deliberate taps, never a
+mis-aimed thumb. The `–` step clears a value again.
 
 Once a scale exists it shows everywhere the place does: as pips on the gallery card and on the
 collapsed site card, in the map tooltip, in the copied report, and as a column in an exported
@@ -79,7 +85,7 @@ progress together, so opening it anywhere restores exactly what you had.
 {
   "format": "atlas-save",
   "version": 3,
-  "app": "1.3.0",
+  "app": "1.3.1",
   "name": "My Atlas",
   "tagline": "Places worth the detour",
   "scales": [
@@ -124,6 +130,19 @@ world. The **Name** and **Tagline** fields rename the atlas — the header and t
 `territories` is keyed by country **name**, not by the map's numeric id, so a file survives a change
 of map dataset; `fid` is written as a hint and only used when the name matches nothing. A territory
 the map cannot place keeps its values and is written back out untouched.
+
+### Opening a catalogue over an atlas you have been keeping
+
+A **catalogue** is a file with sites but no progress of its own — the shipped list of places, or an
+updated copy of one. Opening a file replaces the atlas, and the photos the old one held are then
+released, so opening a catalogue used to erase every tick, note and photo without a word. The file is
+not lying: its progress genuinely is empty.
+
+So a file carrying no progress, opened over an atlas that has some, now offers to **merge**: take its
+sites, scales and territory values, keep everything you have logged. Site ids are stable slugs, so
+your progress lands back on the same places, and a value you set yourself outlives the catalogue's
+own number for that site. Choosing not to merge asks a second time, naming what would be lost, before
+anything is erased. Nothing is destroyed without being named first.
 
 Your work is also written to this browser's storage after every change, so closing the tab loses
 nothing. That copy is per-browser and per-device; the file is how you move between them, and how you
@@ -188,6 +207,11 @@ photo pointers and all. Nothing else needs to understand it: the photos are ordi
 | Photos smaller than that | Left at their own size by default; scale up if every file must match exactly. |
 | File naming | `{country}` `{site}` `{n}` `{index}` `{date}` `{atlas}`. A slash makes a folder; the extension is added for you. |
 
+Above the button is a running count of what the current settings would actually write — *"43 photos
+from 12 sites"*, or a warning in rust when the answer is none. An export that quietly contains no
+pictures is the one failure you cannot see until you open the file, so it is named before it happens
+and again in the toast afterwards.
+
 The zip is written with no compression, which is the right choice for files that are already
 compressed and means reading one back needs no inflate. A bundle another tool has recompressed is
 still read, through the browser's own `DecompressionStream`.
@@ -222,6 +246,7 @@ the source: `APP_VERSION` in `index.html`. Two things follow it and are bumped b
 
 | | |
 |---|---|
+| 1.3.1 | Scale rows read-only until opened, so a value cannot be changed by a stray tap. Opening a catalogue no longer erases progress and photos — it offers to merge. Export says up front how many photos it will write. Save format 3, unchanged. |
 | 1.3.0 | Scales: a number per site and per territory, defined by the atlas. Export bundles (`.zip`) with the photos as files. Attachments now kept at 1600px. Save format 3. |
 | 1.2.0 | Photos moved to IndexedDB, ending the loss of recent attachments. Gallery of every site. Country and site selected together. N. Cyprus, Somaliland and Kosovo separated. Save format 2, unchanged. |
 | 1.1.0 | Photo grid, full-screen viewer, and a main photo per site (`cover`). Save format 2. |
