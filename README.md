@@ -25,6 +25,25 @@ or not you have been there. Search by name, country or hook, and narrow to what 
 to do, has photos, or is your own entry. Tapping a card's picture opens it full screen; tapping
 anywhere else on the card goes to the site.
 
+## Scales
+
+A **scale** is a number an atlas puts on a place — how hard it is to reach, how good it was, what it
+cost. The atlas defines them; every site and every territory can then carry a value on each.
+
+Add one under **Scales** in the overview: a name, how many points it runs to, whether it applies to
+sites, to territories, or to both, and optionally a name per point (`Turn up, Easy trip, Committing,
+Hard, Extreme`). Values are set by tapping a step — on the territory itself at the top of a country
+page, and inside each site's card. The `–` step clears a value again.
+
+Once a scale exists it shows everywhere the place does: as pips on the gallery card and on the
+collapsed site card, in the map tooltip, in the copied report, and as a column in an exported
+manifest. **All sites** gains a sort (low or high first, unrated always last) and a filter for one
+level at a time. The overview shows how far through each level you are — which of the easy ones are
+still outstanding, and how much of the hard end you have actually done.
+
+Removing a scale keeps the numbers already recorded; add it back under the same name and they
+return. Six scales is the limit.
+
 ## Selection
 
 A country and a site are selected together, not one instead of the other. Open a site — from a
@@ -59,10 +78,23 @@ progress together, so opening it anywhere restores exactly what you had.
 ```json
 {
   "format": "atlas-save",
-  "version": 2,
-  "app": "1.2.0",
+  "version": 3,
+  "app": "1.3.0",
   "name": "My Atlas",
   "tagline": "Places worth the detour",
+  "scales": [
+    {
+      "key": "difficulty",
+      "label": "Difficulty to visit",
+      "min": 1,
+      "max": 5,
+      "levels": ["Turn up", "Easy trip", "Committing", "Hard", "Extreme"],
+      "scope": "both"
+    }
+  ],
+  "territories": [
+    { "country": "Peru", "fid": "604", "values": { "difficulty": 2 } }
+  ],
   "sites": [
     {
       "id": "peru/nazca-lines",
@@ -71,7 +103,8 @@ progress together, so opening it anywhere restores exactly what you had.
       "hook": "Figures hundreds of metres across, legible only from the air.",
       "lore": "Longer notes, shown when the card is opened.",
       "lat": -14.739,
-      "lng": -75.13
+      "lng": -75.13,
+      "values": { "difficulty": 2 }
     }
   ],
   "progress": {
@@ -84,8 +117,13 @@ progress together, so opening it anywhere restores exactly what you had.
 }
 ```
 
-**Save to file** downloads it. **Open file…** loads one back. **New atlas** clears to an empty
+**Save .json** downloads it. **Export bundle…** writes the same thing as a zip with the photos
+alongside it as real files. **Open file…** loads either back. **New atlas** clears to an empty
 world. The **Name** and **Tagline** fields rename the atlas — the header and the browser tab follow.
+
+`territories` is keyed by country **name**, not by the map's numeric id, so a file survives a change
+of map dataset; `fid` is written as a hint and only used when the name matches nothing. A territory
+the map cannot place keeps its values and is written back out untouched.
 
 Your work is also written to this browser's storage after every change, so closing the tab loses
 nothing. That copy is per-browser and per-device; the file is how you move between them, and how you
@@ -103,6 +141,7 @@ back up. **Space used** at the foot of the overview shows the photo count and ho
 | `lore` | optional | Shown when the card is opened. |
 | `lat` / `lng` | optional | Decimal degrees. Without both, the site is listed under its country but never drawn on the map. |
 | `id` | optional | Generated from `country` and `name` if you leave it out. |
+| `values` | optional | One entry per scale, `{"difficulty": 3}`, keyed by the scale's `key`. |
 
 IDs are slugs like `peru/nazca-lines`, not positions, so you can reorder, insert and delete freely
 without your ticks sliding onto the wrong sites. Keep an `id` stable and its progress follows it.
@@ -120,6 +159,38 @@ than one. Those ids appear in `progress.countries` in place of a number.
 
 `sites` also accepts the compact array form `["Country", "Name", "hook", "lore", lat, lng]`, which
 is easier to type in bulk.
+
+## Export bundles
+
+A `.json` save carries its photos as base64 inside the record, which makes them a third larger than
+they need to be and reachable by nothing but this app. **Export bundle…** writes a `.zip` instead:
+
+```
+my-atlas.atlas.zip
+├── atlas.json                          the whole atlas, photos named rather than carried
+├── photos/
+│   └── peru/nazca-lines-01.jpg         cut to one format, one size, one naming pattern
+├── photos.csv                          a row per picture: site, country, coordinates, scales, notes
+└── README.txt                          what the settings were
+```
+
+Drop the `.zip` straight back into **Open file…** and everything returns — progress, notes, main
+photo pointers and all. Nothing else needs to understand it: the photos are ordinary picture files.
+
+| setting | |
+|---|---|
+| Sites | All, visited only, or only those with photos. |
+| Photos | Every photo, the main one only, or none — data only. |
+| Format | JPEG, WebP or PNG. A format the browser cannot write is refused rather than silently swapped. |
+| Quality | Ignored for PNG. |
+| Long edge | 640 to 2048 px, or as stored. |
+| Shape | As shot, or cropped from the centre to 1:1, 4:3, 3:2 or 16:9. |
+| Photos smaller than that | Left at their own size by default; scale up if every file must match exactly. |
+| File naming | `{country}` `{site}` `{n}` `{index}` `{date}` `{atlas}`. A slash makes a folder; the extension is added for you. |
+
+The zip is written with no compression, which is the right choice for files that are already
+compressed and means reading one back needs no inflate. A bundle another tool has recompressed is
+still read, through the browser's own `DecompressionStream`.
 
 ## Offline and installing
 
@@ -151,17 +222,22 @@ the source: `APP_VERSION` in `index.html`. Two things follow it and are bumped b
 
 | | |
 |---|---|
+| 1.3.0 | Scales: a number per site and per territory, defined by the atlas. Export bundles (`.zip`) with the photos as files. Attachments now kept at 1600px. Save format 3. |
 | 1.2.0 | Photos moved to IndexedDB, ending the loss of recent attachments. Gallery of every site. Country and site selected together. N. Cyprus, Somaliland and Kosovo separated. Save format 2, unchanged. |
 | 1.1.0 | Photo grid, full-screen viewer, and a main photo per site (`cover`). Save format 2. |
 | 1.0.0 | First release. Save format 1. |
 
-Save format 2 only adds the optional `cover` pointer, so a version 1 file opens unchanged — a site
-with photos and no pointer simply treats the first as its main one.
+Every format change so far has been an addition, so an older file opens unchanged. Format 2 adds the
+optional `cover` pointer — a site with photos and none simply treats the first as its main one.
+Format 3 adds `scales`, `territories` and per-site `values`; a file without them opens as an atlas
+that has no scales, and saving it back writes a format 3 file with those parts empty.
 
 ## Where photos are kept
 
-Photos are downscaled to 1000px and stored as data URLs. In a **save file** they are embedded, which
-is what keeps one file self-contained — a heavily illustrated atlas therefore gets large.
+Photos are downscaled to 1600px on the long edge and stored as data URLs. In a **save file** they are
+embedded, which is what keeps one file self-contained — a heavily illustrated atlas therefore gets
+large. Up to 1.2.0 the limit was 1000px; it was raised so that an exported bundle contains real
+pictures rather than thumbnails. Photos attached before then keep the size they were stored at.
 
 In the **browser**, up to 1.1.0, the whole atlas including its pictures went into `localStorage`.
 That is capped near 5 MB, so past roughly twenty photos every write threw and each edit made after
@@ -188,6 +264,10 @@ coordinates.
 `version` in the save file is the hook for format changes; the reader is tolerant rather than
 strict, so nothing reads it yet — it is there for a change that cannot be absorbed silently.
 `app` records which build wrote the file.
+
+The zip reader and writer are a few dozen lines in `index.html` — store method, CRC-32 and a central
+directory. There is no dependency to add and nothing to keep up to date, which for a page that has
+to work offline is worth more than the compression it gives up.
 
 ## Licence
 

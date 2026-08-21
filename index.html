@@ -211,6 +211,41 @@ h2.dossier{font-family:var(--serif);font-size:30px;font-weight:400;margin:0 0 2p
 .meter i{display:block;height:100%;background:var(--cyan-dim);transition:width .4s}
 .meter i.hot{background:var(--rust)}
 
+/* ---- scales: a numbered value a site or a country can carry ---- */
+.scale{margin:0 0 11px}
+.scalehead{display:flex;align-items:baseline;gap:8px;margin-bottom:5px}
+.scaleval{margin-left:auto;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--cyan)}
+.scaleval.off{color:#4d585e}
+.steps{display:flex;gap:4px}
+.steps button{flex:1;padding:6px 0;font-size:11px;letter-spacing:.04em;min-width:0}
+.steps button.on{border-color:var(--cyan);color:var(--cyan);background:#12262880}
+.steps button.clear{flex:0 0 34px;color:var(--dim)}
+.pips{display:inline-flex;gap:2.5px;align-items:center;vertical-align:middle}
+.pips i{width:5px;height:5px;border:1px solid var(--cyan-dim);border-radius:50%}
+.pips i.on{background:var(--cyan);border-color:var(--cyan)}
+.pips.hot i.on{background:var(--rust);border-color:var(--rust)}
+.pips.hot i{border-color:#7a3729}
+.galtag{display:flex;align-items:center;gap:6px;font-size:9px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--dim)}
+.scaletag{position:absolute;right:4px;top:4px;display:flex;gap:2.5px;padding:3px 4px;
+  background:#0b1114d9;align-items:center}
+.scaletag i{width:5px;height:5px;border:1px solid var(--cyan-dim);border-radius:50%}
+.scaletag i.on{background:var(--cyan);border-color:var(--cyan)}
+.scaletag.hot i.on{background:var(--rust);border-color:var(--rust)}
+.lvlrow{display:flex;align-items:center;gap:9px;padding:5px 2px;font-size:10.5px;letter-spacing:.04em}
+.lvlrow .lvln{color:var(--dim);text-transform:uppercase;font-size:9.5px;letter-spacing:.14em;
+  min-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lvlrow .lvlbar{flex:1;height:3px;background:#161e22;overflow:hidden}
+.lvlrow .lvlbar i{display:block;height:100%;background:var(--cyan-dim)}
+.lvlrow em{font-style:normal;color:var(--dim);font-size:10px;min-width:42px;text-align:right}
+.scaledef{display:flex;gap:7px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}
+.scaledef input{flex:1}
+.scaledef .tiny{white-space:nowrap}
+select{font-family:var(--mono);font-size:11.5px;color:var(--bone);background:#0a0f12;
+  border:1px solid var(--line2);padding:7px 8px;width:100%}
+select:focus{outline:none;border-color:var(--cyan-dim)}
+.two3{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:9px}
+
 .statgrid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);margin-bottom:16px}
 .statgrid div{background:#0b1013;padding:12px}
 .statgrid b{display:block;font-family:var(--serif);font-size:32px;font-weight:400;color:var(--cyan);line-height:1}
@@ -318,7 +353,7 @@ h2.dossier{font-family:var(--serif);font-size:30px;font-weight:400;margin:0 0 2p
   </div>
 </div>
 <div id="toast"></div>
-<input type="file" id="openfile" accept="application/json,.json" style="display:none">
+<input type="file" id="openfile" accept="application/json,.json,application/zip,.zip" style="display:none">
 
 <script>
 (function(){
@@ -331,9 +366,13 @@ h2.dossier{font-family:var(--serif);font-size:30px;font-weight:400;margin:0 0 2p
    --------------------------------------------------------------- */
 
 const KEY='atlas-v1';
-const APP_VERSION='1.2.0';        // shown in the overview; bump with sw.js CACHE
-const SAVE_VERSION=2;             // save files: 2 adds the main-photo pointer
+const APP_VERSION='1.3.0';        // shown in the overview; bump with sw.js CACHE
+const SAVE_VERSION=3;             // 2 added the main-photo pointer; 3 adds scales
 const DEFAULT_NAME='Atlas', DEFAULT_TAG='Site Log';
+/* What an attached photo is kept at. Large enough that an exported bundle has
+   real pictures in it rather than thumbnails, small enough that a few hundred
+   still fit in a browser's store. */
+const SHOT_MAX=1600, SHOT_Q=.74;
 
 const norm=s=>String(s).toLowerCase().replace(/[^a-z]/g,'');
 const slug=s=>String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
@@ -350,7 +389,14 @@ const ALIAS={
 };
 
 /* ---------- state ---------- */
-const blank=()=>({name:DEFAULT_NAME,tagline:DEFAULT_TAG,sites:[],countries:{},places:{},own:[]});
+/* Territory values whose country the map has not matched yet — see readTerr.
+   They belong to whatever atlas is loaded, so an empty atlas empties them too. */
+let terrPending=[];
+const blank=()=>{
+  terrPending=[];
+  return {name:DEFAULT_NAME,tagline:DEFAULT_TAG,scales:[],sites:[],
+          countries:{},places:{},own:[],terr:{}};
+};
 let S=blank();
 
 const num=v=>{const n=parseFloat(v); return isFinite(n)?n:null;};
@@ -359,6 +405,45 @@ const str=(v,d)=>typeof v==='string'?v:(d===undefined?'':d);
 // the literal string "undefined" as a country reference; it names nothing now.
 const fidOf=v=>{ const s=v==null?'':String(v);
   return (!s||s==='undefined'||s==='null')?null:s; };
+
+/* ---------------------------------------------------------------
+   Scales.
+   A scale is a numbered judgement an atlas puts on a place — how hard
+   it is to reach, how good it was, how much it cost. The atlas defines
+   the scales; sites and territories carry a value on each. Values are
+   read even when no scale claims them, so a scale deleted by accident
+   and added back finds its numbers still there.
+   --------------------------------------------------------------- */
+const MAX_SCALES=6, MAX_STEPS=10;
+function readScales(arr){
+  if(!Array.isArray(arr)) return [];
+  const seen=new Set();
+  return arr.map(m=>{
+    if(!m||typeof m!=='object') return null;
+    const label=str(m.label).trim()||str(m.key).trim();
+    let key=slug(str(m.key))||slug(label);
+    if(!key||!label) return null;
+    while(seen.has(key)) key+='-2';
+    seen.add(key);
+    let min=num(m.min), max=num(m.max);
+    min=Math.max(0,Math.min(9,min==null?1:Math.round(min)));
+    max=max==null?min+4:Math.round(max);
+    max=Math.max(min+1,Math.min(max,min+MAX_STEPS-1));
+    const levels=(Array.isArray(m.levels)?m.levels:[]).map(x=>str(x).trim()).slice(0,max-min+1);
+    const scope=['site','country','both'].indexOf(str(m.scope))>=0?str(m.scope):'both';
+    return {key,label,min,max,levels,scope};
+  }).filter(Boolean).slice(0,MAX_SCALES);
+}
+function readValues(o){
+  const out={};
+  if(!o||typeof o!=='object'||Array.isArray(o)) return out;
+  Object.keys(o).forEach(k=>{
+    const key=slug(k), n=num(o[k]);
+    if(key&&n!=null) out[key]=Math.round(n);
+  });
+  return out;
+}
+const someValues=v=>Object.keys(v).length?v:undefined;
 
 function readSites(arr){
   if(!Array.isArray(arr)) return [];
@@ -373,7 +458,8 @@ function readSites(arr){
     while(seen.has(id)) id+='-2';
     seen.add(id);
     return {id,country:str(o.country),name:str(o.name),hook:str(o.hook),
-            lore:str(o.lore),lat:num(o.lat),lng:num(o.lng),own:false};
+            lore:str(o.lore),lat:num(o.lat),lng:num(o.lng),
+            values:readValues(o.values),own:false};
   }).filter(Boolean);
 }
 function readOwn(arr){
@@ -383,31 +469,71 @@ function readOwn(arr){
     return {id:str(o.id).trim()||('o'+Date.now()+Math.random().toString(36).slice(2,6)),
             country:str(o.country),cname:str(o.cname),fid:fidOf(o.fid),
             name:str(o.name),hook:str(o.hook),lore:str(o.lore),
-            lat:num(o.lat),lng:num(o.lng),own:true};
+            lat:num(o.lat),lng:num(o.lng),values:readValues(o.values),own:true};
   }).filter(Boolean);
+}
+/* Territory values arrive named by country, because a file has to survive a
+   change of map dataset — the numeric ids do not travel, the names do. They are
+   bound to a territory in resolveTerr, once the map is up; anything the map
+   cannot match waits in terrPending and is written back out untouched. */
+function readTerr(arr){
+  if(!Array.isArray(arr)) return [];
+  return arr.map(t=>{
+    if(!t||typeof t!=='object') return null;
+    const values=readValues(t.values);
+    if(!Object.keys(values).length) return null;
+    return {country:str(t.country),fid:fidOf(t.fid),values};
+  }).filter(Boolean);
+}
+function resolveTerr(){
+  if(!features.length) return;
+  const known=new Set(features.map(f=>String(f.id)));
+  const left=[];
+  terrPending.forEach(t=>{
+    const f=t.country?lookup(t.country):null;
+    const fid=f?String(f.id):(known.has(t.fid)?t.fid:null);
+    if(!fid){ left.push(t); return; }
+    const cur=S.terr[fid]||(S.terr[fid]={});
+    Object.keys(t.values).forEach(k=>{ cur[k]=t.values[k]; });
+  });
+  terrPending=left;
+}
+function writeTerr(){
+  const out=[];
+  Object.keys(S.terr).forEach(fid=>{
+    const v=S.terr[fid];
+    if(!v||!Object.keys(v).length) return;
+    const f=featureOf(fid);
+    out.push({country:f?f.properties.name:'',fid:fid,values:v});
+  });
+  return out.concat(terrPending);
 }
 function readSave(o){
   if(!o||typeof o!=='object') throw new Error('not an atlas file');
   const p=(o.progress&&typeof o.progress==='object')?o.progress:{};
   const obj=v=>(v&&typeof v==='object'&&!Array.isArray(v))?v:{};
+  terrPending=readTerr(o.territories);
   return {
     name:str(o.name).trim()||DEFAULT_NAME,
     tagline:str(o.tagline).trim(),
+    scales:readScales(o.scales),
     sites:readSites(o.sites),
     countries:obj(p.countries),
     places:obj(p.places),
-    own:readOwn(p.own)
+    own:readOwn(p.own),
+    terr:{}
   };
 }
 /* The file written out for the user: photos travel inside it as data URLs, so
    one file is still the whole atlas and opens anywhere. */
-function writeSave(){
+const outSite=s=>({id:s.id,country:s.country,name:s.name,hook:s.hook,
+  lore:s.lore,lat:s.lat,lng:s.lng,values:someValues(s.values||{})});
+const outOwn=s=>({id:s.id,country:s.country,cname:s.cname,fid:s.fid,name:s.name,
+  hook:s.hook,lore:s.lore,lat:s.lat,lng:s.lng,values:someValues(s.values||{})});
+function writeSave(places){
   return {format:'atlas-save',version:SAVE_VERSION,app:APP_VERSION,name:S.name,tagline:S.tagline,
-    sites:S.sites.map(s=>({id:s.id,country:s.country,name:s.name,hook:s.hook,
-      lore:s.lore,lat:s.lat,lng:s.lng})),
-    progress:{countries:S.countries,places:inlinePlaces(),
-      own:S.own.map(s=>({id:s.id,country:s.country,cname:s.cname,fid:s.fid,name:s.name,
-        hook:s.hook,lore:s.lore,lat:s.lat,lng:s.lng}))}};
+    scales:S.scales,territories:writeTerr(),sites:S.sites.map(outSite),
+    progress:{countries:S.countries,places:places||inlinePlaces(),own:S.own.map(outOwn)}};
 }
 function inlinePlaces(){
   const out={};
@@ -582,11 +708,8 @@ function save(){
 function stateRecord(){
   return {format:'atlas-save',version:SAVE_VERSION,app:APP_VERSION,byref:true,
     name:S.name,tagline:S.tagline,
-    sites:S.sites.map(s=>({id:s.id,country:s.country,name:s.name,hook:s.hook,
-      lore:s.lore,lat:s.lat,lng:s.lng})),
-    progress:{countries:S.countries,places:S.places,
-      own:S.own.map(s=>({id:s.id,country:s.country,cname:s.cname,fid:s.fid,name:s.name,
-        hook:s.hook,lore:s.lore,lat:s.lat,lng:s.lng}))}};
+    scales:S.scales,territories:writeTerr(),sites:S.sites.map(outSite),
+    progress:{countries:S.countries,places:S.places,own:S.own.map(outOwn)}};
 }
 function saveLocal(){
   try{ localStorage.setItem(KEY,JSON.stringify(writeSave())); saveFailed=false; }
@@ -633,7 +756,11 @@ const proj=d3.geoNaturalEarth1(), path=d3.geoPath(proj);
 /* A selection names a country and a site at once rather than one or the other:
    opening a site lights up the territory holding it, and picking a territory
    keeps its own marking while you work through the sites inside. */
-let features=[], byName=new Map(), sel={country:null,site:null}, k=1, W=0, H=0, pickMode=false;
+let features=[], byName=new Map(), byId=new Map(), sel={country:null,site:null},
+    k=1, W=0, H=0, pickMode=false;
+// Every save writes a line per territory, so this lookup runs often enough to
+// be worth a map rather than a scan.
+const featureOf=fid=>byId.get(String(fid))||null;
 const hasSel=()=>!!(sel.country||sel.site);
 const clearSel=()=>{ sel={country:null,site:null}; };
 const allSites=()=>S.sites.concat(S.own);
@@ -702,7 +829,7 @@ boot().then(()=>d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countrie
   gLand.selectAll('path').data(features).join('path')
     .attr('class','country').attr('d',path)
     .on('click',(ev,d)=>{ if(pickMode) return; ev.stopPropagation(); selectCountry(String(d.id)); })
-    .on('mousemove',(ev,d)=>showTip(ev,d.properties.name,countSites(String(d.id))))
+    .on('mousemove',(ev,d)=>showTip(ev,d.properties.name,countSites(String(d.id)),'',tipScales(null,String(d.id))))
     .on('mouseleave',hideTip);
 
   svg.on('click',ev=>{
@@ -735,6 +862,7 @@ function nameFeatures(){
     seen.add(id);
     f.id=id;
   });
+  byId=new Map(features.map(f=>[String(f.id),f]));
 }
 function lookup(name){
   const n=norm(name);
@@ -762,13 +890,75 @@ function resolveSites(){
       if(!s.fid&&s.country) unresolved.push(s.country); }
   });
   if(unresolved.length) console.warn('unresolved countries',[...new Set(unresolved)]);
+  resolveTerr();
+}
+
+/* ---------- scale values ---------- */
+const scaleFor=key=>S.scales.find(m=>m.key===key)||null;
+const siteScales=()=>S.scales.filter(m=>m.scope!=='country');
+const countryScales=()=>S.scales.filter(m=>m.scope!=='site');
+const levelName=(m,v)=>(m.levels&&m.levels[v-m.min])||'';
+const levelText=(m,v)=>v+'/'+m.max+(levelName(m,v)?' · '+levelName(m,v):'');
+// A value outside the scale is shown where it sits rather than hidden: the scale
+// may have been narrowed after the number was set.
+const sval=(s,key)=>(s&&s.values&&Number.isFinite(s.values[key]))?s.values[key]:null;
+function setSval(s,key,v){
+  if(!s) return;
+  const vals=s.values||(s.values={});
+  if(v==null) delete vals[key]; else vals[key]=v;
+  save();
+}
+const tval=(fid,key)=>{ const m=S.terr[fid]; return (m&&Number.isFinite(m[key]))?m[key]:null; };
+function setTval(fid,key,v){
+  const m=S.terr[fid]||(S.terr[fid]={});
+  if(v==null) delete m[key]; else m[key]=v;
+  if(!Object.keys(m).length) delete S.terr[fid];
+  save();
+}
+// Past the halfway mark a scale reads as a warning rather than a score, and the
+// difficulty of a place is the thing you most want to see at a glance.
+const hotAt=m=>m.min+(m.max-m.min)*0.6;
+function pips(m,v,cls){
+  if(v==null) return '';
+  let out='';
+  for(let i=m.min;i<=m.max;i++) out+=`<i class="${i<=v?'on':''}"></i>`;
+  return `<span class="${cls||'pips'} ${v>=hotAt(m)?'hot':''}" title="${esc(m.label+' — '+levelText(m,v))}">${out}</span>`;
+}
+/* The control for one value: a step per point, and a way back to unset. */
+function scaleRow(m,v,attr){
+  let steps='';
+  for(let i=m.min;i<=m.max;i++)
+    steps+=`<button class="step ${v===i?'on':''}" ${attr} data-set="${i}"`
+      +` title="${esc(levelName(m,i)||m.label+' '+i)}">${i}</button>`;
+  return `<div class="scale">
+    <div class="scalehead"><span class="fieldlabel" style="margin:0">${esc(m.label)}</span>
+      <span class="scaleval ${v==null?'off':''}">${v==null?'Not set':esc(levelText(m,v))}</span></div>
+    <div class="steps">${steps}<button class="step clear" ${attr} data-set="" title="Clear">–</button></div>
+  </div>`;
+}
+// Every step button in the panel, wherever it was drawn, writes its value and
+// redraws — the number shows in the gallery and the tooltip as well as here.
+function wireScales(after){
+  pbody.querySelectorAll('.step[data-scale]').forEach(b=>{
+    b.onclick=ev=>{
+      ev.stopPropagation();
+      const key=b.dataset.scale, raw=b.dataset.set, v=raw===''?null:+raw;
+      if(b.dataset.terr!==undefined) setTval(b.dataset.terr,key,v);
+      else{
+        const s=allSites().find(x=>x.id===b.dataset.site);
+        if(!s) return;
+        setSval(s,key,v);
+      }
+      if(after) after(b);
+    };
+  });
 }
 function drawSites(){
   const g=gSites.selectAll('.site').data(allSites(),d=>d.id);
   g.exit().remove();
   const e=g.enter().append('g').attr('class','site')
     .on('click',(ev,d)=>{ ev.stopPropagation(); selectSite(d); })
-    .on('mousemove',(ev,d)=>showTip(ev,d.name,-1,d.cname||d.country))
+    .on('mousemove',(ev,d)=>showTip(ev,d.name,-1,d.cname||d.country,tipScales(d,null)))
     .on('mouseleave',hideTip);
   e.append('circle').attr('class','halo').attr('r',9);
   e.append('circle').attr('r',4.2);
@@ -793,16 +983,25 @@ function doneIn(fid){ return allSites().filter(s=>s.fid===fid&&isDone(s.id)).len
 
 /* ---------- tooltip ---------- */
 const tip=document.getElementById('tip');
-function showTip(ev,name,n,sub){
+function showTip(ev,name,n,sub,extra){
   const r=wrap.getBoundingClientRect();
   tip.style.left=(ev.clientX-r.left)+'px'; tip.style.top=(ev.clientY-r.top)+'px';
-  tip.innerHTML=esc(name)+(n>0?` <small>· ${n} site${n>1?'s':''}</small>`:'')+(sub?` <small>· ${esc(sub)}</small>`:'');
+  tip.innerHTML=esc(name)+(n>0?` <small>· ${n} site${n>1?'s':''}</small>`:'')
+    +(sub?` <small>· ${esc(sub)}</small>`:'')+(extra||'');
   tip.style.opacity=1;
+}
+// What a place scores, short enough to sit in a tooltip.
+function tipScales(site,fid){
+  const list=site?siteScales():countryScales();
+  return list.map(m=>{
+    const v=site?sval(site,m.key):tval(fid,m.key);
+    return v==null?'':` <small>· ${esc(m.label)} ${esc(levelText(m,v))}</small>`;
+  }).join('');
 }
 function hideTip(){ tip.style.opacity=0; }
 
 function flyTo(fid){
-  const f=features.find(x=>String(x.id)===fid); if(!f) return;
+  const f=featureOf(fid); if(!f) return;
   const b=path.bounds(f), dx=b[1][0]-b[0][0], dy=b[1][1]-b[0][1];
   const kk=Math.max(1,Math.min(8,.6/Math.max(dx/W,dy/H)));
   const cx=(b[0][0]+b[1][0])/2, cy=(b[0][1]+b[1][1])/2;
@@ -941,18 +1140,77 @@ function renderOverview(){
       '<p class="empty">Nothing marked visited yet.</p>'}
     ${n?`<button id="a-gallery" style="width:100%;margin-top:10px">Every site on file (${n}) →</button>`:''}
     <div class="rule"></div>
+    <div class="sechead">Scales</div>
+    ${S.scales.length?S.scales.map(scaleStat).join('')
+      :'<p class="empty">A scale is a number you put on a place — how hard it is to reach, how good it was, what it cost. Add one and every site and territory gets it.</p>'}
+    ${S.scales.length<MAX_SCALES?'<button id="sc-add" style="width:100%;margin-top:10px">+ New scale</button>':
+      `<p class="note">${MAX_SCALES} scales is the limit. Remove one to add another.</p>`}
+    <div class="form" id="sc-form">
+      <label><span class="fieldlabel">Name</span><input id="sc-label" placeholder="e.g. Difficulty, Rating, Cost"></label>
+      <div class="two">
+        <label><span class="fieldlabel">Points</span><select id="sc-max">
+          <option value="3">1 to 3</option><option value="5" selected>1 to 5</option>
+          <option value="10">1 to 10</option></select></label>
+        <label><span class="fieldlabel">Applies to</span><select id="sc-scope">
+          <option value="both" selected>Sites and territories</option>
+          <option value="site">Sites only</option>
+          <option value="country">Territories only</option></select></label>
+      </div>
+      <label><span class="fieldlabel">Level names — optional</span>
+        <input id="sc-levels" placeholder="Turn up, Easy trip, Committing, Hard, Extreme"></label>
+      <div class="rowbtns"><button id="sc-save">Add scale</button><button id="sc-cancel">Cancel</button></div>
+      <p class="note">Level names are read in order, one per point, separated by commas. Values already recorded are kept.</p>
+    </div>
+    <div class="rule"></div>
     <div class="sechead">This atlas</div>
     <label><span class="fieldlabel">Name</span><input id="a-rename" value="${esc(S.name)}" placeholder="${DEFAULT_NAME}"></label>
     <label style="display:block;margin-top:9px"><span class="fieldlabel">Tagline</span><input id="a-retag" value="${esc(S.tagline)}" placeholder="${DEFAULT_TAG}"></label>
     <div class="rule"></div>
     <div class="sechead">Save file</div>
     <div class="rowbtns">
-      <button id="a-save">Save to file</button>
+      <button id="a-save">Save .json</button>
+      <button id="a-bundle">Export bundle…</button>
       <button id="a-open">Open file…</button>
       <button id="a-copy">Copy report</button>
       <button id="a-new">New atlas</button>
     </div>
-    <p class="note">The file holds the atlas name, every site, and your progress — everything. It reopens here on any device. Work is also kept in this browser automatically. Attached photos are embedded, so a file with many photos gets large.</p>
+    <p class="note">The .json file holds the atlas name, every site, and your progress — everything, photos included as embedded data. It reopens here on any device. Work is also kept in this browser automatically.</p>
+    <div class="form" id="x-form">
+      <p class="note" style="margin:0 0 11px">A bundle is a .zip: the same save file, plus every photo as a real picture file, cut to one size and named to one pattern. It opens here like any save, and the photos are usable anywhere else.</p>
+      <div class="two">
+        <label><span class="fieldlabel">Sites</span><select id="x-sites">
+          <option value="all">All sites</option><option value="done">Visited only</option>
+          <option value="pix">With photos only</option></select></label>
+        <label><span class="fieldlabel">Photos</span><select id="x-photos">
+          <option value="all">Every photo</option><option value="main">Main photo only</option>
+          <option value="none">None — data only</option></select></label>
+      </div>
+      <div class="two">
+        <label><span class="fieldlabel">Format</span><select id="x-fmt">
+          <option value="image/jpeg">JPEG</option><option value="image/webp">WebP</option>
+          <option value="image/png">PNG</option></select></label>
+        <label><span class="fieldlabel">Quality</span><select id="x-q">
+          <option value="0.7">Smaller</option><option value="0.82">Standard</option>
+          <option value="0.92">Best</option></select></label>
+      </div>
+      <div class="two">
+        <label><span class="fieldlabel">Long edge</span><select id="x-size">
+          <option value="640">640 px</option><option value="1024">1024 px</option>
+          <option value="1600">1600 px</option><option value="2048">2048 px</option>
+          <option value="0">As stored</option></select></label>
+        <label><span class="fieldlabel">Shape</span><select id="x-shape">
+          <option value="as">As shot</option><option value="1">Square 1:1</option>
+          <option value="1.3333">Landscape 4:3</option><option value="1.5">Landscape 3:2</option>
+          <option value="1.7778">Wide 16:9</option></select></label>
+      </div>
+      <label><span class="fieldlabel">Photos smaller than that</span><select id="x-grow">
+        <option value="no">Keep their own size</option>
+        <option value="yes">Scale up, so every file matches</option></select></label>
+      <label style="display:block;margin-top:9px"><span class="fieldlabel">File naming</span><input id="x-name" placeholder="{country}/{site}-{n}"></label>
+      <p class="note" style="margin-top:6px">Tokens: <b>{country}</b> <b>{site}</b> <b>{n}</b> photo number · <b>{index}</b> running number · <b>{date}</b> · <b>{atlas}</b>. A slash makes a folder. The extension is added for you.</p>
+      <div class="rowbtns"><button id="x-go">Export bundle</button><button id="x-cancel">Cancel</button></div>
+      <p class="note" id="x-note">Photos are stored at up to ${SHOT_MAX} px, so a larger long edge will not add detail.</p>
+    </div>
     <div class="sechead" style="margin-top:14px">Space used</div>
     <div class="tiny" id="a-usage">Measuring…</div>
     <div class="meter"><i id="a-meter" style="width:0"></i></div>
@@ -971,6 +1229,8 @@ function renderOverview(){
     pbody.querySelector('h2.dossier').textContent=S.name; };
   retag.onchange=retag.onblur=()=>{ S.tagline=retag.value.trim(); save(); brand(); };
 
+  wireScaleForm();
+  wireBundleForm();
   document.getElementById('a-save').onclick=saveToFile;
   document.getElementById('a-open').onclick=()=>document.getElementById('openfile').click();
   document.getElementById('a-copy').onclick=copyReport;
@@ -980,6 +1240,71 @@ function renderOverview(){
     resolveSites(); drawSites(); paint(); brand(); renderOverview(); toast('New atlas');
   };
 }
+/* One scale as the overview shows it: a name you can change, and — for anything
+   that applies to sites — how far through each level you are. The breakdown is
+   the point of a scale at atlas level: it says which of the easy ones are still
+   outstanding, and how much of the hard end you have actually done. */
+function scaleStat(m){
+  const scope=m.scope==='site'?'Sites only':m.scope==='country'?'Territories only':'Sites and territories';
+  let rows='';
+  if(m.scope!=='country'){
+    const sites=allSites();
+    for(let i=m.min;i<=m.max;i++){
+      const at=sites.filter(s=>sval(s,m.key)===i);
+      if(!at.length) continue;
+      const dn=at.filter(s=>isDone(s.id)).length;
+      rows+=`<div class="lvlrow"><span class="lvln">${esc(levelName(m,i)||('Level '+i))}</span>
+        <span class="lvlbar"><i style="width:${(dn/at.length*100).toFixed(1)}%"></i></span>
+        <em>${dn}/${at.length}</em></div>`;
+    }
+    const unset=sites.filter(s=>sval(s,m.key)==null).length;
+    if(unset&&sites.length) rows+=`<div class="lvlrow"><span class="lvln">Not set</span>
+      <span class="lvlbar"></span><em>${unset}</em></div>`;
+  }
+  return `<div class="scaledef">
+      <input data-screname="${esc(m.key)}" value="${esc(m.label)}" aria-label="Scale name">
+      <span class="tiny">${m.min}–${m.max}</span>
+      <button data-scdrop="${esc(m.key)}" title="Remove this scale">×</button>
+    </div>
+    <p class="tiny" style="margin:5px 0 1px">${scope}</p>
+    ${rows}`;
+}
+function wireScaleForm(){
+  pbody.querySelectorAll('[data-screname]').forEach(inp=>{
+    inp.onchange=inp.onblur=()=>{
+      const m=scaleFor(inp.dataset.screname);
+      if(!m) return;
+      const v=inp.value.trim();
+      if(!v){ inp.value=m.label; return; }   // a scale with no name cannot be read anywhere
+      m.label=v; save();
+    };
+  });
+  // The values stay behind on purpose: a scale removed by mistake, then added
+  // back under the same name, finds every number it had.
+  pbody.querySelectorAll('[data-scdrop]').forEach(b=>{
+    b.onclick=()=>{
+      const m=scaleFor(b.dataset.scdrop);
+      if(!m||!confirm('Remove the “'+m.label+'” scale? The numbers already recorded are kept, and return if you add it back.')) return;
+      S.scales=S.scales.filter(x=>x.key!==m.key);
+      save(); renderOverview(); toast('Scale removed');
+    };
+  });
+  const form=document.getElementById('sc-form'), add=document.getElementById('sc-add');
+  if(add) add.onclick=()=>{ form.classList.add('open'); document.getElementById('sc-label').focus(); };
+  document.getElementById('sc-cancel').onclick=()=>form.classList.remove('open');
+  document.getElementById('sc-save').onclick=()=>{
+    const label=document.getElementById('sc-label').value.trim();
+    if(!label){ toast('A name is required'); return; }
+    const one=readScales([{key:label,label:label,min:1,
+      max:+document.getElementById('sc-max').value,
+      scope:document.getElementById('sc-scope').value,
+      levels:document.getElementById('sc-levels').value.split(',').map(x=>x.trim()).filter(Boolean)}])[0];
+    if(!one){ toast('That name cannot be used'); return; }
+    if(scaleFor(one.key)){ toast('A scale by that name already exists'); return; }
+    S.scales.push(one); save(); renderOverview(); toast('Scale added');
+  };
+}
+
 const mb=b=>b>=1048576?(b/1048576).toFixed(1)+' MB':Math.max(1,Math.round(b/1024))+' KB';
 // Photos are the only thing here big enough to matter, so the count travels
 // with the figure — it is the number you act on when space runs low.
@@ -1007,28 +1332,74 @@ function showUsage(){
    this answers "what have I got", in one scrolling sheet led by the pictures.
    The search text and filter survive a redraw, so attaching or removing a photo
    from here leaves you where you were. */
-let galQ='', galF='all';
+let galQ='', galF='all', galSort='country', galLvl='';
 const GAL_FILTERS=[['all','All'],['done','Visited'],['todo','Not yet'],['pix','With photos'],['own','Mine']];
 function galMatch(s){
   if(galF==='done'&&!isDone(s.id)) return false;
   if(galF==='todo'&&isDone(s.id)) return false;
   if(galF==='pix'&&!photoCount(s.id)) return false;
   if(galF==='own'&&!s.own) return false;
+  if(galLvl){
+    const cut=galLvl.split(':'), v=sval(s,cut[0]);
+    if(cut[1]==='none'){ if(v!=null) return false; }
+    else if(v!==+cut[1]) return false;
+  }
   const q=galQ.trim().toLowerCase();
   if(!q) return true;
   return (s.name+' '+(s.cname||s.country)+' '+(s.hook||'')).toLowerCase().indexOf(q)>=0;
 }
+const byCountryThenName=(a,b)=>
+  (a.cname||a.country||'~').localeCompare(b.cname||b.country||'~')||a.name.localeCompare(b.name);
+/* Sorting by a scale puts the unrated last whichever way the order runs — they
+   are not a low score, they are an absence, and burying them keeps both ends of
+   the list meaningful. */
+function galSorted(all){
+  if(galSort==='name') return all.sort((a,b)=>a.name.localeCompare(b.name));
+  if(galSort==='visited') return all.sort((a,b)=>(isDone(b.id)-isDone(a.id))||byCountryThenName(a,b));
+  const cut=galSort.split(':'), m=scaleFor(cut[0]);
+  if(!m) return all.sort(byCountryThenName);
+  return all.sort((a,b)=>{
+    const x=sval(a,m.key), y=sval(b,m.key);
+    if(x==null||y==null) return x==null&&y==null?byCountryThenName(a,b):(x==null?1:-1);
+    return (cut[1]==='desc'?y-x:x-y)||byCountryThenName(a,b);
+  });
+}
+function galSortOptions(){
+  let out=[['country','Country'],['name','Name'],['visited','Visited first']];
+  siteScales().forEach(m=>{
+    out.push([m.key+':asc',m.label+' — low first'],[m.key+':desc',m.label+' — high first']);
+  });
+  return out.map(([v,l])=>`<option value="${esc(v)}" ${galSort===v?'selected':''}>${esc(l)}</option>`).join('');
+}
+function galLevelOptions(){
+  let out=`<option value="" ${galLvl?'':'selected'}>Any level</option>`;
+  siteScales().forEach(m=>{
+    for(let i=m.min;i<=m.max;i++){
+      const v=m.key+':'+i;
+      out+=`<option value="${esc(v)}" ${galLvl===v?'selected':''}>${esc(m.label+' '+levelText(m,i))}</option>`;
+    }
+    out+=`<option value="${esc(m.key)}:none" ${galLvl===m.key+':none'?'selected':''}>${esc(m.label)} — not set</option>`;
+  });
+  return out;
+}
 function renderSites(){
   curView={kind:'sites',fid:null};
   kicker.textContent='All sites'; back.style.display='inline-block'; hlabel.textContent='All sites';
-  const all=allSites().slice().sort((a,b)=>
-    (a.cname||a.country||'~').localeCompare(b.cname||b.country||'~')||a.name.localeCompare(b.name));
+  // a scale removed while its filter was on would otherwise empty the list
+  if(galLvl&&!scaleFor(galLvl.split(':')[0])) galLvl='';
+  if(galSort.indexOf(':')>0&&!scaleFor(galSort.split(':')[0])) galSort='country';
+  const all=galSorted(allSites().slice());
   const list=all.filter(galMatch);
   const shots=all.reduce((n,s)=>n+photoCount(s.id),0);
+  const scaled=siteScales().length;
   pbody.innerHTML=`
     <h2 class="dossier">All sites</h2>
     <div class="meta">${all.length} on file · ${all.filter(s=>isDone(s.id)).length} visited · ${shots} photo${shots===1?'':'s'}</div>
     <div class="galbar"><input id="g-q" placeholder="Search name, country or hook" value="${esc(galQ)}"></div>
+    ${scaled?`<div class="two3">
+      <label><span class="fieldlabel">Sort by</span><select id="g-sort">${galSortOptions()}</select></label>
+      <label><span class="fieldlabel">Level</span><select id="g-lvl">${galLevelOptions()}</select></label>
+    </div>`:''}
     <div class="chips">${GAL_FILTERS.map(([k2,label])=>
       `<button class="chip ${galF===k2?'on':''}" data-filter="${k2}">${label}</button>`).join('')}</div>
     ${!all.length?'<p class="empty">No sites yet. Select a territory on the map to add the first one, or open a save file you already have.</p>'
@@ -1049,6 +1420,9 @@ function renderSites(){
   };
   pbody.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{
     galF=b.dataset.filter; renderSites(); pbody.scrollTop=0; });
+  const sortSel=document.getElementById('g-sort'), lvlSel=document.getElementById('g-lvl');
+  if(sortSel) sortSel.onchange=()=>{ galSort=sortSel.value; renderSites(); pbody.scrollTop=0; };
+  if(lvlSel) lvlSel.onchange=()=>{ galLvl=lvlSel.value; renderSites(); pbody.scrollTop=0; };
   pbody.querySelectorAll('.galcard').forEach(el=>{
     el.onclick=ev=>{
       const s=allSites().find(x=>x.id===el.dataset.site); if(!s) return;
@@ -1060,16 +1434,20 @@ function renderSites(){
 }
 function galCard(s){
   const cover=coverSrc(s.id), n=photoCount(s.id), ci=coverIdx(s.id), done=isDone(s.id);
+  // the leading scale rides on the picture, where it reads without stealing a line
+  const lead=siteScales()[0], lv=lead?sval(s,lead.key):null;
   return `<figure class="galcard ${done?'done':''} ${sel.site===s.id?'sel':''}" data-site="${esc(s.id)}">
     <div class="galshot">
       ${cover?`<img src="${esc(cover)}" alt="${esc(s.name)}" loading="lazy" data-view="${ci}">`
              :'<span class="galnone">No photo</span>'}
       ${done?`<b class="galtick ${s.own?'own':''}">✓</b>`:''}
       ${n>1?`<b class="galcount">${n} photos</b>`:''}
+      ${lv==null?'':pips(lead,lv,'scaletag')}
     </div>
     <figcaption class="galcap">
       <span class="galname">${esc(s.name)}</span>
       <span class="galsub">${esc(s.cname||s.country||'Unplaced')}</span>
+      ${lv==null?'':`<span class="galtag">${esc(levelName(lead,lv)||lead.label+' '+lv)}</span>`}
     </figcaption></figure>`;
 }
 
@@ -1077,7 +1455,7 @@ function galCard(s){
 let curView={kind:'overview',fid:null};   // what the panel is showing, so edits can redraw it
 function renderCountry(fid,openId){
   curView={kind:'country',fid:fid};
-  const f=features.find(x=>String(x.id)===fid);
+  const f=featureOf(fid);
   const name=f?f.properties.name:'Unknown';
   const sites=allSites().filter(s=>s.fid===fid);
   const on=!!S.countries[fid];
@@ -1086,6 +1464,9 @@ function renderCountry(fid,openId){
     <h2 class="dossier">${esc(name)}</h2>
     <div class="meta">${sites.length} site${sites.length===1?'':'s'} on file · <span id="c-done">${sites.filter(s=>isDone(s.id)).length}</span> visited</div>
     <button class="bigbtn ${on?'on':''}" id="c-toggle">${on?'✓ Visited — logged':'Mark as visited'}</button>
+    ${countryScales().length?`<div class="sechead">This territory</div>
+      ${countryScales().map(m=>scaleRow(m,tval(fid,m.key),
+         `data-scale="${esc(m.key)}" data-terr="${esc(fid)}"`)).join('')}`:''}
     <div class="sechead">Sites</div>
     ${sites.length?sites.map(card).join(''):'<p class="empty">No sites here yet. Add the first one below.</p>'}
     <div class="rule"></div>
@@ -1137,6 +1518,15 @@ function setPick(lat,lng){
 }
 function endPick(){ pickMode=false; svg.classed('picking',false); }
 
+// What a site scores, for the head of a card that may well be shut.
+function scaleTags(s){
+  const out=siteScales().map(m=>{
+    const v=sval(s,m.key);
+    return v==null?'':`<span class="galtag" style="margin-top:4px">${pips(m,v)}
+      ${esc(levelName(m,v)||m.label+' '+v)}</span>`;
+  }).filter(Boolean);
+  return out.join('');
+}
 function card(s){
   const r=S.places[s.id]||{}, cid=cssId(s.id), sid=esc(s.id);
   const ph=photosOf(s.id), ci=coverIdx(s.id), n=ph.length, cover=coverSrc(s.id);
@@ -1163,6 +1553,7 @@ function card(s){
       <div style="min-width:0">
         <p class="cardname">${esc(s.name)}</p>
         ${s.hook?`<p class="hook">${esc(s.hook)}</p>`:''}
+        ${scaleTags(s)}
       </div>
       ${cover?`<img class="cardthumb" src="${esc(cover)}" alt="">`:''}
     </div>
@@ -1170,6 +1561,8 @@ function card(s){
       ${hero}
       ${s.lore?`<p class="lore">${esc(s.lore)}</p>`:''}
       ${s.lat!=null&&s.lng!=null?`<p class="coords">${dms(s.lat,['N','S'])} / ${dms(s.lng,['E','W'])}</p>`:'<p class="coords">No coordinates on file</p>'}
+      ${siteScales().map(m=>scaleRow(m,sval(s,m.key),
+        `data-scale="${esc(m.key)}" data-site="${sid}"`)).join('')}
       <p class="fieldlabel">Your notes</p>
       <textarea rows="3" data-note="${sid}" placeholder="Date of visit, conditions, what you saw.">${esc(r.notes||'')}</textarea>
       <p class="fieldlabel" style="margin-top:11px">Photos${n?` · ${n}`:''}</p>
@@ -1193,6 +1586,8 @@ function refreshView(openId){
 }
 function wireCards(fid){
   const bySite=sel=>pbody.querySelectorAll(sel);
+  // a step on a territory carries no site, so this redraws the page as a whole
+  wireScales(b=>refreshView(b.dataset.site));
   bySite('.cardtop').forEach(t=>{
     t.onclick=ev=>{
       const cardEl=t.closest('.card'), id=cardEl.dataset.site;
@@ -1235,7 +1630,7 @@ function wireCards(fid){
                     :(added===1?'Photo attached':added+' photos attached')));
           return;
         }
-        shrink(f,1000,d=>{
+        shrink(f,SHOT_MAX,d=>{
           if(!d){ failed++; return next(); }
           const pid=newPhotoId();
           storePhoto(pid,d).then(ok=>{
@@ -1281,7 +1676,7 @@ function shrink(file,max,cb){
         const c=document.createElement('canvas');
         c.width=Math.max(1,Math.round(img.width*sc)); c.height=Math.max(1,Math.round(img.height*sc));
         c.getContext('2d').drawImage(img,0,0,c.width,c.height);
-        back(c.toDataURL('image/jpeg',.62));
+        back(c.toDataURL('image/jpeg',SHOT_Q));
       }catch(e){ back(null); }
     };
     img.src=fr.result;
@@ -1365,12 +1760,297 @@ lbEl.addEventListener('touchend',ev=>{
 },{passive:true});
 
 /* ---------- save files ---------- */
-function saveToFile(){
-  const b=new Blob([JSON.stringify(writeSave(),null,2)],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(b);
-  a.download=(slug(S.name)||'atlas')+'.atlas.json'; a.click();
+function download(blob,name){
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=name; a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+function saveToFile(){
+  download(new Blob([JSON.stringify(writeSave(),null,2)],{type:'application/json'}),
+           (slug(S.name)||'atlas')+'.atlas.json');
   toast('Saved to file');
+}
+
+/* ---------------------------------------------------------------
+   Bundles.
+   A .json save carries photos as base64 inside the record, which makes
+   them a third larger than they need to be and unreachable to anything
+   that is not this app. A bundle is a zip holding the same save next to
+   the pictures as actual files — cut to one size, one format and one
+   naming pattern, so a folder of them is orderly enough to hand to a
+   print shop or drop into a photo library. Opening a bundle here puts
+   the pictures back where they came from.
+
+   The zip is written entry by entry with no compression: JPEG and WebP
+   are already compressed, and storing them plainly means the reader
+   below needs no inflate to undo it. Anything compressed by another
+   tool is still read, through the platform's own decompressor.
+   --------------------------------------------------------------- */
+const CRC_TABLE=(function(){
+  const t=new Uint32Array(256);
+  for(let i=0;i<256;i++){ let c=i;
+    for(let k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);
+    t[i]=c>>>0; }
+  return t;
+})();
+function crc32(u8){
+  let c=0xFFFFFFFF;
+  for(let i=0;i<u8.length;i++) c=CRC_TABLE[(c^u8[i])&255]^(c>>>8);
+  return (c^0xFFFFFFFF)>>>0;
+}
+function dosStamp(d){
+  return {time:((d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1))&0xFFFF,
+          date:(((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate())&0xFFFF};
+}
+function zipBlob(entries){
+  const enc=new TextEncoder(), body=[], dir=[], stamp=dosStamp(new Date());
+  let off=0;
+  entries.forEach(e=>{
+    const name=enc.encode(e.name), data=e.data, crc=crc32(data);
+    const lh=new DataView(new ArrayBuffer(30));
+    lh.setUint32(0,0x04034b50,true); lh.setUint16(4,20,true);
+    lh.setUint16(6,0x0800,true);              // names are UTF-8
+    lh.setUint16(8,0,true);                   // stored
+    lh.setUint16(10,stamp.time,true); lh.setUint16(12,stamp.date,true);
+    lh.setUint32(14,crc,true); lh.setUint32(18,data.length,true); lh.setUint32(22,data.length,true);
+    lh.setUint16(26,name.length,true); lh.setUint16(28,0,true);
+    body.push(new Uint8Array(lh.buffer),name,data);
+    const ch=new DataView(new ArrayBuffer(46));
+    ch.setUint32(0,0x02014b50,true); ch.setUint16(4,20,true); ch.setUint16(6,20,true);
+    ch.setUint16(8,0x0800,true); ch.setUint16(10,0,true);
+    ch.setUint16(12,stamp.time,true); ch.setUint16(14,stamp.date,true);
+    ch.setUint32(16,crc,true); ch.setUint32(20,data.length,true); ch.setUint32(24,data.length,true);
+    ch.setUint16(28,name.length,true); ch.setUint16(30,0,true); ch.setUint16(32,0,true);
+    ch.setUint16(34,0,true); ch.setUint16(36,0,true); ch.setUint32(38,0,true);
+    ch.setUint32(42,off,true);
+    dir.push(new Uint8Array(ch.buffer),name);
+    off+=30+name.length+data.length;
+  });
+  const dirSize=dir.reduce((n,p)=>n+p.length,0);
+  const end=new DataView(new ArrayBuffer(22));
+  end.setUint32(0,0x06054b50,true);
+  end.setUint16(8,entries.length,true); end.setUint16(10,entries.length,true);
+  end.setUint32(12,dirSize,true); end.setUint32(16,off,true);
+  return new Blob(body.concat(dir,[new Uint8Array(end.buffer)]),{type:'application/zip'});
+}
+// Reads the central directory backwards from the end marker, which is the only
+// part of a zip whose position is known.
+function zipList(buf){
+  const dv=new DataView(buf), u8=new Uint8Array(buf), dec=new TextDecoder();
+  let p=-1;
+  for(let i=buf.byteLength-22;i>=0&&i>=buf.byteLength-22-65535;i--)
+    if(dv.getUint32(i,true)===0x06054b50){ p=i; break; }
+  if(p<0) throw new Error('not a zip file');
+  const n=dv.getUint16(p+10,true);
+  let q=dv.getUint32(p+16,true);
+  const out=[];
+  for(let i=0;i<n;i++){
+    if(q+46>buf.byteLength||dv.getUint32(q,true)!==0x02014b50) throw new Error('zip directory damaged');
+    const method=dv.getUint16(q+10,true), csize=dv.getUint32(q+20,true);
+    const nl=dv.getUint16(q+28,true), el=dv.getUint16(q+30,true), cl=dv.getUint16(q+32,true);
+    const at=dv.getUint32(q+42,true);
+    const name=dec.decode(u8.subarray(q+46,q+46+nl));
+    const start=at+30+dv.getUint16(at+26,true)+dv.getUint16(at+28,true);
+    out.push({name,method,data:u8.slice(start,start+csize)});
+    q+=46+nl+el+cl;
+  }
+  return out;
+}
+function zipRead(e){
+  if(e.method===0) return Promise.resolve(e.data);
+  if(e.method!==8||typeof DecompressionStream!=='function')
+    return Promise.reject(new Error('compressed entry cannot be read: '+e.name));
+  return new Response(new Blob([e.data]).stream().pipeThrough(new DecompressionStream('deflate-raw')))
+    .arrayBuffer().then(b=>new Uint8Array(b));
+}
+
+/* ---------- the picture template ---------- */
+const EXT={'image/jpeg':'jpg','image/webp':'webp','image/png':'png'};
+const BUNDLE={sites:'all',photos:'all',fmt:'image/jpeg',q:'0.82',size:'1600',shape:'as',
+              grow:'no',name:'{country}/{site}-{n}'};
+// Safari once returned a PNG from toDataURL for any type it did not know, so the
+// chosen format is confirmed against what the canvas actually produces.
+function canMake(type){
+  try{
+    const c=document.createElement('canvas'); c.width=c.height=1;
+    return c.toDataURL(type).indexOf('data:'+type)===0;
+  }catch(e){ return false; }
+}
+/* One photo, redrawn to the template. `shape` is either 'as' — keep the
+   proportions it was shot at — or a target ratio, in which case the middle of
+   the picture is taken and the rest dropped. */
+function renderPhoto(src,opt){
+  return new Promise(res=>{
+    const img=new Image();
+    img.onerror=()=>res(null);
+    img.onload=()=>{
+      try{
+        const iw=img.width, ih=img.height;
+        if(!iw||!ih) return res(null);
+        let sx=0, sy=0, sw=iw, sh=ih;
+        if(opt.shape!=='as'){
+          const r=+opt.shape;
+          if(iw/ih>r){ sw=Math.round(ih*r); sx=Math.round((iw-sw)/2); }
+          else{ sh=Math.round(iw/r); sy=Math.round((ih-sh)/2); }
+        }
+        /* Enlarging adds no detail, only bytes, so by default a photo already
+           smaller than the target is left at its own size. Ask for it and every
+           file comes out at exactly the same dimensions instead. */
+        const long=+opt.size||0, fit=long?long/Math.max(sw,sh):1;
+        const sc=opt.grow==='yes'?fit:Math.min(1,fit);
+        const c=document.createElement('canvas');
+        c.width=Math.max(1,Math.round(sw*sc)); c.height=Math.max(1,Math.round(sh*sc));
+        const g=c.getContext('2d');
+        g.fillStyle='#000'; g.fillRect(0,0,c.width,c.height);
+        g.drawImage(img,sx,sy,sw,sh,0,0,c.width,c.height);
+        c.toBlob(b=>res(b),opt.fmt,opt.fmt==='image/png'?undefined:+opt.q);
+      }catch(e){ res(null); }
+    };
+    img.src=src;
+  });
+}
+function fillName(tpl,site,n,index,ext){
+  const one=v=>slug(String(v==null?'':v))||'x';
+  const out=String(tpl||BUNDLE.name).replace(/\{(\w+)\}/g,(all,tok)=>{
+    if(tok==='country') return one(site.cname||site.country||'unplaced');
+    if(tok==='site') return one(site.name);
+    if(tok==='n') return String(n).padStart(2,'0');
+    if(tok==='index') return String(index).padStart(3,'0');
+    if(tok==='date') return new Date().toISOString().slice(0,10);
+    if(tok==='atlas') return one(S.name);
+    return '';
+  })
+  // a template can leave a stray separator behind; a path has to stay a path
+  .split('/').map(p=>p.replace(/[^A-Za-z0-9._-]+/g,'-').replace(/^[-.]+|[-.]+$/g,'')).filter(Boolean);
+  return 'photos/'+(out.join('/')||'photo')+'.'+ext;
+}
+const csvCell=v=>{
+  const s=String(v==null?'':v);
+  return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
+};
+
+function buildBundle(opt,onStep){
+  const enc=new TextEncoder(), ext=EXT[opt.fmt]||'jpg';
+  const wanted=allSites().filter(s=>
+    opt.sites==='done'?isDone(s.id):opt.sites==='pix'?photoCount(s.id)>0:true);
+  // what to render, in the order the files will be numbered
+  const jobs=[];
+  wanted.forEach(s=>{
+    if(opt.photos==='none') return;
+    const ph=photosOf(s.id), ci=coverIdx(s.id);
+    ph.forEach((pid,i)=>{
+      if(opt.photos==='main'&&i!==ci) return;
+      const data=pix(pid);
+      if(data) jobs.push({site:s,i:i,cover:i===ci,data:data});
+    });
+  });
+  const entries=[], rows=[['file','site','country','visited','main','latitude','longitude']
+    .concat(S.scales.map(m=>m.label)).concat(['notes']).map(csvCell).join(',')];
+  const taken=new Set(), placePhotos={};
+  let n=0, failed=0;
+
+  return jobs.reduce((chain,job,idx)=>chain.then(()=>{
+    if(onStep) onStep(idx+1,jobs.length);
+    return renderPhoto(job.data,opt).then(blob=>{
+      if(!blob){ failed++; return null; }
+      return blob.arrayBuffer().then(ab=>{
+        const s=job.site;
+        let name=fillName(opt.name,s,job.i+1,++n,ext), i=2;
+        while(taken.has(name.toLowerCase())){
+          name=name.replace(new RegExp('\\.'+ext+'$'),'-'+(i++)+'.'+ext);
+        }
+        taken.add(name.toLowerCase());
+        entries.push({name:name,data:new Uint8Array(ab)});
+        (placePhotos[s.id]=placePhotos[s.id]||[]).push({at:job.i,file:name,cover:job.cover});
+        rows.push([name,s.name,s.cname||s.country,isDone(s.id)?'yes':'no',
+          job.cover?'yes':'no',s.lat==null?'':s.lat,s.lng==null?'':s.lng]
+          .concat(S.scales.map(m=>{ const v=sval(s,m.key); return v==null?'':levelText(m,v); }))
+          .concat([(S.places[s.id]||{}).notes||''])
+          .map(csvCell).join(','));
+      });
+    });
+  }),Promise.resolve()).then(()=>{
+    /* The save inside a bundle names its photos by file rather than carrying
+       them, which is what makes the zip worth having. Sites left out by the
+       filters keep their record; only the pictures they own are absent. */
+    const places={};
+    Object.keys(S.places).forEach(id=>{
+      const r=S.places[id]; if(!r) return;
+      const o={};
+      if(r.visited) o.visited=true;
+      if(r.notes) o.notes=r.notes;
+      const kept=(placePhotos[id]||[]).sort((a,b)=>a.at-b.at);
+      if(kept.length){
+        o.photos=kept.map(p=>p.file);
+        const c=kept.findIndex(p=>p.cover);
+        o.cover=c<0?0:c;
+      }
+      if(Object.keys(o).length) places[id]=o;
+    });
+    const doc=writeSave(places);
+    doc.bundle=true;
+    entries.unshift({name:'atlas.json',data:enc.encode(JSON.stringify(doc,null,2))});
+    if(n) entries.push({name:'photos.csv',data:enc.encode(rows.join('\r\n'))});
+    entries.push({name:'README.txt',data:enc.encode(bundleReadme(opt,n,ext))});
+    return {blob:zipBlob(entries),count:n,failed:failed};
+  });
+}
+function bundleReadme(opt,n,ext){
+  const shape=opt.shape==='as'?'as shot':opt.shape+':1 from the centre';
+  return [S.name+(S.tagline?' — '+S.tagline:''),
+    'Atlas bundle · '+new Date().toISOString().slice(0,10),
+    '',
+    'atlas.json   the whole atlas. Open it, or this .zip itself, in the app to',
+    '             get everything back — progress, notes and photos included.',
+    'photos/      '+n+' picture'+(n===1?'':'s')+', '+ext.toUpperCase()+', long edge '
+      +(+opt.size?(opt.size+' px'+(opt.grow==='yes'?' exactly':' max')):'as stored')+', '+shape+'.',
+    'photos.csv   one row per picture: site, country, coordinates, scales, notes.',
+    '',
+    'Naming pattern: '+(opt.name||BUNDLE.name),
+    'Sites: '+(opt.sites==='done'?'visited only':opt.sites==='pix'?'those with photos':'all')
+      +' · Photos: '+(opt.photos==='main'?'main only':opt.photos==='none'?'none':'every one'),
+    '',
+    'Written by Atlas '+APP_VERSION+' (save format v'+SAVE_VERSION+').'].join('\n');
+}
+function wireBundleForm(){
+  const form=document.getElementById('x-form');
+  const get=id=>document.getElementById(id);
+  const fields={sites:'x-sites',photos:'x-photos',fmt:'x-fmt',q:'x-q',size:'x-size',shape:'x-shape',
+                grow:'x-grow',name:'x-name'};
+  Object.keys(fields).forEach(k=>{
+    const el=get(fields[k]);
+    el.value=BUNDLE[k];
+    if(el.tagName==='SELECT'&&el.selectedIndex<0) el.value=BUNDLE[k]=blankDefault(k);
+    el.onchange=()=>{ BUNDLE[k]=el.value; if(k==='fmt') noteFormat(); };
+  });
+  get('x-name').oninput=()=>{ BUNDLE.name=get('x-name').value; };
+  function blankDefault(k){ return {sites:'all',photos:'all',fmt:'image/jpeg',q:'0.82',size:'1600',
+                                   shape:'as',grow:'no'}[k]; }
+  function noteFormat(){
+    const el=get('x-note');
+    el.textContent=BUNDLE.fmt==='image/webp'&&!canMake('image/webp')
+      ? 'This browser cannot write WebP — pick JPEG or PNG.'
+      : BUNDLE.fmt==='image/png'
+        ? 'PNG keeps every pixel and ignores quality; the files are several times larger.'
+        : 'Photos are stored at up to '+SHOT_MAX+' px, so a larger long edge will not add detail.';
+  }
+  noteFormat();
+  get('a-bundle').onclick=()=>{ form.classList.add('open'); pbody.scrollTop=pbody.scrollHeight; };
+  get('x-cancel').onclick=()=>form.classList.remove('open');
+  get('x-go').onclick=()=>{
+    if(BUNDLE.fmt!=='image/jpeg'&&!canMake(BUNDLE.fmt)){ toast('This browser cannot write that format'); return; }
+    const go=get('x-go');
+    go.disabled=true;
+    toast('Building bundle…');
+    buildBundle(BUNDLE,(i,total)=>{ if(total>4&&i%4===0) toast('Rendering '+i+' of '+total+'…'); })
+      .then(r=>{
+        download(r.blob,(slug(S.name)||'atlas')+'.atlas.zip');
+        toast(r.failed?(r.count+' photos exported, '+r.failed+' failed')
+                      :('Bundle saved · '+r.count+' photo'+(r.count===1?'':'s')+' · '+mb(r.blob.size)));
+      })
+      .catch(e=>{ console.error(e); toast('Bundle could not be built'); })
+      .then(()=>{ const b=document.getElementById('x-go'); if(b) b.disabled=false; });
+  };
 }
 // An opened file carries its pictures inline; they are moved into the photo
 // store, and whatever the previous atlas held is released.
@@ -1384,24 +2064,102 @@ function applySave(o,msg){
     save(); resolveSites(); drawSites(); paint(); brand();
     clearSel(); renderOverview(); openPanel(); });
 }
+/* A bundle is unpacked back into an ordinary save: every photo path in the
+   record is swapped for the picture the zip holds under that name, and from
+   there it is opened like any other file. Files the zip is missing are dropped
+   rather than left as broken references. */
+function openBundle(buf){
+  const list=zipList(buf);
+  const byName=new Map(), byBase=new Map();
+  list.forEach(e=>{
+    byName.set(e.name.toLowerCase(),e);
+    const base=e.name.split('/').pop().toLowerCase();
+    if(!byBase.has(base)) byBase.set(base,e);
+  });
+  const jsons=list.filter(e=>/\.json$/i.test(e.name))
+    .sort((a,b)=>(/^atlas\.json$/i.test(b.name)?1:0)-(/^atlas\.json$/i.test(a.name)?1:0));
+  if(!jsons.length) throw new Error('no atlas file inside that bundle');
+  return zipRead(jsons[0]).then(bytes=>{
+    const doc=JSON.parse(new TextDecoder().decode(bytes));
+    const p=(doc&&doc.progress&&typeof doc.progress==='object')?doc.progress:{};
+    const places=(p.places&&typeof p.places==='object')?p.places:{};
+    const jobs=[];
+    Object.keys(places).forEach(id=>{
+      const r=places[id];
+      if(!r||!Array.isArray(r.photos)) return;
+      r.photos.forEach((name,i)=>{
+        if(typeof name!=='string'||name.slice(0,5)==='data:') return;
+        const key=name.toLowerCase();
+        const e=byName.get(key)||byBase.get(key.split('/').pop());
+        jobs.push({rec:r,i:i,entry:e||null,name:name});
+      });
+    });
+    return jobs.reduce((chain,j)=>chain.then(()=>{
+      if(!j.entry){ j.rec.photos[j.i]=null; return null; }
+      return zipRead(j.entry)
+        .then(bytes2=>toDataURL(bytes2,j.name))
+        .then(url=>{ j.rec.photos[j.i]=url; })
+        .catch(e=>{ console.error(e); j.rec.photos[j.i]=null; });
+    }),Promise.resolve()).then(()=>{
+      // a photo that went missing must not take the main-photo pointer with it
+      Object.keys(places).forEach(id=>{
+        const r=places[id];
+        if(!r||!Array.isArray(r.photos)) return;
+        const at=Number.isInteger(r.cover)?r.cover:0;
+        const kept=[];
+        let cover=0;
+        r.photos.forEach((u,i)=>{ if(!u) return; if(i===at) cover=kept.length; kept.push(u); });
+        if(!kept.length){ delete r.photos; delete r.cover; }
+        else{ r.photos=kept; r.cover=Math.min(cover,kept.length-1); }
+      });
+      return doc;
+    });
+  });
+}
+const MIME={jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp',gif:'image/gif',
+            avif:'image/avif',heic:'image/heic'};
+function toDataURL(bytes,name){
+  const ext=(name.split('.').pop()||'').toLowerCase();
+  return new Promise((res,rej)=>{
+    const fr=new FileReader();
+    fr.onload=()=>res(fr.result);
+    fr.onerror=()=>rej(fr.error||new Error('unreadable picture'));
+    fr.readAsDataURL(new Blob([bytes],{type:MIME[ext]||'application/octet-stream'}));
+  });
+}
 document.getElementById('openfile').onchange=function(){
-  const f=this.files&&this.files[0]; if(!f) return;
+  const f=this.files&&this.files[0];
+  this.value='';   // let the same file be reopened later
+  if(!f) return;
   const fr=new FileReader();
   fr.onload=()=>{
-    try{ applySave(JSON.parse(fr.result),'Atlas opened'); }
-    catch(e){ toast('Not a valid atlas file'); console.error(e); }
+    const buf=fr.result, head=new Uint8Array(buf,0,Math.min(4,buf.byteLength));
+    const isZip=head[0]===0x50&&head[1]===0x4B;
+    try{
+      if(isZip){
+        toast('Unpacking bundle…');
+        openBundle(buf).then(doc=>applySave(doc,'Bundle opened'))
+          .catch(e=>{ console.error(e); toast('That bundle could not be read'); });
+      } else {
+        applySave(JSON.parse(new TextDecoder().decode(buf)),'Atlas opened');
+      }
+    }catch(e){ toast('Not a valid atlas file'); console.error(e); }
   };
   fr.onerror=()=>toast('Could not read that file');
-  fr.readAsText(f);
-  this.value='';   // let the same file be reopened later
+  fr.readAsArrayBuffer(f);
 };
 function copyReport(){
   const cv=visitedFeatures().map(f=>f.properties.name);
   const done=allSites().filter(s=>isDone(s.id));
+  const marks=s=>{
+    const t=siteScales().map(m=>{ const v=sval(s,m.key); return v==null?'':m.label+' '+levelText(m,v); })
+      .filter(Boolean).join(', ');
+    return t?' — '+t:'';
+  };
   const t=[S.name.toUpperCase()+(S.tagline?' — '+S.tagline.toUpperCase():''),'',
     `Territories visited: ${cv.length} of ${features.length}`,cv.join(', ')||'—','',
     `Sites visited: ${done.length}`,
-    ...done.map(s=>`· ${s.name} (${s.cname||s.country})`)].join('\n');
+    ...done.map(s=>`· ${s.name} (${s.cname||s.country})${marks(s)}`)].join('\n');
   (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject())
     .then(()=>toast('Report copied')).catch(()=>toast('Copy unavailable'));
 }
